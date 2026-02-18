@@ -15,6 +15,14 @@ export default {
     extend: {
       colors: {
         border: "hsl(var(--border))",
+        "brand-blue": "hsl(var(--brand-blue))",
+        "brand-green": "hsl(var(--brand-green))",
+        "brand-gold": "hsl(var(--brand-gold))",
+        "brand-purple": "hsl(var(--brand-purple))",
+        "brand-orange": "hsl(var(--brand-orange))",
+        "brand-red": "hsl(var(--brand-red))",
+        "brand-white": "hsl(var(--brand-white))",
+        "brand-black": "hsl(var(--brand-black))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
