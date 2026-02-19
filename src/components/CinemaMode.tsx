@@ -1,6 +1,202 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, RotateCcw, Maximize, Minimize, Video, Circle, Download, Info, X } from "lucide-react";
+import { Play, Pause, RotateCcw, Maximize, Minimize, Video, Circle, Download, Info, Music, Volume2, VolumeX } from "lucide-react";
+
+/* ─── AMBIENT MUSIC ENGINE ─── */
+type TrackId = "cosmic" | "pulse" | "minimal";
+
+interface Track {
+  id: TrackId;
+  label: string;
+  description: string;
+  emoji: string;
+  color: string;
+}
+
+const TRACKS: Track[] = [
+  { id: "cosmic",  label: "Cosmic Drift",   description: "Ethereal pads & shimmer", emoji: "🌌", color: "hsl(var(--brand-blue))" },
+  { id: "pulse",   label: "Electric Pulse",  description: "Energetic beats & synth",  emoji: "⚡", color: "hsl(var(--brand-purple))" },
+  { id: "minimal", label: "Pure Minimal",    description: "Calm tones & space",       emoji: "🌿", color: "hsl(var(--brand-green))" },
+];
+
+class AmbientPlayer {
+  private ctx: AudioContext | null = null;
+  private gainNode: GainNode | null = null;
+  private nodes: AudioNode[] = [];
+  private oscillators: OscillatorNode[] = [];
+  private running = false;
+
+  private get audio() {
+    if (!this.ctx) this.ctx = new AudioContext();
+    return this.ctx;
+  }
+
+  private makeGain(val: number, dest?: AudioNode) {
+    const g = this.audio.createGain();
+    g.gain.value = val;
+    g.connect(dest ?? this.gainNode!);
+    this.nodes.push(g);
+    return g;
+  }
+
+  private osc(freq: number, type: OscillatorType, dest: AudioNode, detune = 0) {
+    const o = this.audio.createOscillator();
+    o.type = type;
+    o.frequency.value = freq;
+    o.detune.value = detune;
+    o.connect(dest);
+    o.start();
+    this.oscillators.push(o);
+    return o;
+  }
+
+  private lfo(rate: number, depth: number, param: AudioParam) {
+    const l = this.audio.createOscillator();
+    const g = this.audio.createGain();
+    l.frequency.value = rate;
+    g.gain.value = depth;
+    l.connect(g);
+    g.connect(param);
+    l.start();
+    this.oscillators.push(l);
+    this.nodes.push(g);
+  }
+
+  start(track: TrackId, volume: number) {
+    this.stop();
+    this.running = true;
+    const ctx = this.audio;
+    if (ctx.state === "suspended") ctx.resume();
+
+    this.gainNode = ctx.createGain();
+    this.gainNode.gain.value = volume;
+    this.gainNode.connect(ctx.destination);
+
+    if (track === "cosmic") this.playCosmic();
+    else if (track === "pulse") this.playPulse();
+    else this.playMinimal();
+  }
+
+  private playCosmic() {
+    // Soft pad chords: C maj7 → Am7 cycling
+    const notes = [130.81, 164.81, 196.00, 246.94, 261.63, 329.63];
+    notes.forEach((f, i) => {
+      const filter = this.audio.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 800 + i * 120;
+      filter.connect(this.gainNode!);
+      const g = this.makeGain(0.06, filter);
+      const o = this.osc(f, "sawtooth", g, i * 5);
+      // slow vibrato
+      this.lfo(0.3 + i * 0.05, 3, o.frequency);
+    });
+    // shimmer high harmonics
+    [523.25, 659.25, 783.99].forEach((f, i) => {
+      const g = this.makeGain(0.018);
+      this.osc(f, "sine", g, i * 2);
+      this.lfo(0.15 + i * 0.1, 8, this.oscillators[this.oscillators.length - 1].frequency);
+    });
+    // sub bass drone
+    const bassG = this.makeGain(0.07);
+    this.osc(65.41, "sine", bassG);
+  }
+
+  private playPulse() {
+    // Rhythmic gate effect via gain LFO
+    const gateGain = this.audio.createGain();
+    gateGain.gain.value = 0;
+    gateGain.connect(this.gainNode!);
+    this.nodes.push(gateGain);
+    // Gate LFO at ~120bpm (2Hz)
+    const gateLFO = this.audio.createOscillator();
+    gateLFO.frequency.value = 2;
+    const gateDepth = this.audio.createGain();
+    gateDepth.gain.value = 0.15;
+    gateLFO.connect(gateDepth);
+    gateDepth.connect(gateGain.gain);
+    gateLFO.start();
+    this.oscillators.push(gateLFO);
+    this.nodes.push(gateDepth);
+    // Lead synth
+    [220, 277.18, 329.63, 440].forEach((f, i) => {
+      const filter = this.audio.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = f * 2;
+      filter.Q.value = 2;
+      filter.connect(gateGain);
+      const g = this.makeGain(0.1, filter);
+      this.osc(f, "square", g, i * 3);
+    });
+    // Bass pulse
+    const bassFilter = this.audio.createBiquadFilter();
+    bassFilter.type = "lowpass";
+    bassFilter.frequency.value = 200;
+    bassFilter.connect(this.gainNode!);
+    const bassG = this.makeGain(0.12, bassFilter);
+    const bassO = this.osc(55, "sawtooth", bassG);
+    this.lfo(2, 20, bassO.frequency);
+    // Hi-hat noise bursts (white noise via buffer)
+    this.spawnNoise(0.03, "highpass", 6000);
+  }
+
+  private playMinimal() {
+    // Clean sine tones in pentatonic scale with long attack/release envelope feel
+    const freqs = [174.61, 220, 261.63, 349.23, 440];
+    freqs.forEach((f, i) => {
+      const filter = this.audio.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 600;
+      filter.connect(this.gainNode!);
+      const g = this.makeGain(0.04, filter);
+      const o = this.osc(f, "sine", g);
+      this.lfo(0.1 + i * 0.03, 2, o.frequency);
+    });
+    // gentle shimmer
+    const shimG = this.makeGain(0.02);
+    this.osc(880, "triangle", shimG);
+    this.lfo(0.25, 6, this.oscillators[this.oscillators.length - 1].frequency);
+    // sub
+    const subG = this.makeGain(0.05);
+    this.osc(87.31, "sine", subG);
+  }
+
+  private spawnNoise(vol: number, filterType: BiquadFilterType, filterFreq: number) {
+    const bufSize = this.audio.sampleRate * 0.5;
+    const buf = this.audio.createBuffer(1, bufSize, this.audio.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = this.audio.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const filter = this.audio.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = filterFreq;
+    const g = this.audio.createGain();
+    g.gain.value = vol;
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(this.gainNode!);
+    src.start();
+    this.nodes.push(filter, g);
+  }
+
+  setVolume(v: number) {
+    if (this.gainNode) this.gainNode.gain.setTargetAtTime(v, this.audio.currentTime, 0.1);
+  }
+
+  stop() {
+    this.running = false;
+    this.oscillators.forEach(o => { try { o.stop(); } catch {} });
+    this.oscillators = [];
+    this.nodes.forEach(n => { try { n.disconnect(); } catch {} });
+    this.nodes = [];
+    if (this.gainNode) { try { this.gainNode.disconnect(); } catch {} this.gainNode = null; }
+  }
+
+  isRunning() { return this.running; }
+}
+
+const ambientPlayer = new AmbientPlayer();
 
 const LETTERS = ["i", "n", "y", "i", "t", "o"];
 const LETTER_COLORS = [
@@ -283,6 +479,12 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
   const [showTips, setShowTips] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
 
+  // Music state
+  const [selectedTrack, setSelectedTrack] = useState<TrackId | null>(null);
+  const [musicVolume, setMusicVolume] = useState(0.5);
+  const [musicMuted, setMusicMuted] = useState(false);
+  const [showMusicPanel, setShowMusicPanel] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -319,6 +521,21 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
     return () => { if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); };
   }, [recordingState]);
 
+  // Music: start/stop with playback
+  useEffect(() => {
+    if (playing && selectedTrack) {
+      ambientPlayer.start(selectedTrack, musicMuted ? 0 : musicVolume);
+    } else {
+      ambientPlayer.stop();
+    }
+    return () => { ambientPlayer.stop(); };
+  }, [playing, selectedTrack]); // eslint-disable-line
+
+  // Music: volume/mute changes
+  useEffect(() => {
+    ambientPlayer.setVolume(musicMuted ? 0 : musicVolume);
+  }, [musicVolume, musicMuted]);
+
   // Current scene
   let sceneIndex = 0;
   let sceneElapsed = elapsed;
@@ -342,6 +559,7 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
     setStarted(false);
     setRecordingState("idle");
     setRecordingDuration(0);
+    ambientPlayer.stop();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
     }
@@ -539,6 +757,83 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
               </button>
             ))}
           </div>
+
+          {/* Music button */}
+          <div className="relative">
+            <button onClick={() => setShowMusicPanel(p => !p)}
+              className="p-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-1.5 text-xs"
+              style={{ color: selectedTrack ? TRACKS.find(t => t.id === selectedTrack)?.color : "hsl(var(--muted-foreground))" }}>
+              <Music size={16} />
+              <span className="hidden sm:inline font-medium">{selectedTrack ? TRACKS.find(t => t.id === selectedTrack)?.label : "Music"}</span>
+            </button>
+
+            {/* Music panel dropdown */}
+            <AnimatePresence>
+              {showMusicPanel && (
+                <motion.div
+                  className="absolute right-0 top-10 z-50 w-72 rounded-2xl border border-border bg-card shadow-2xl p-4"
+                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                  transition={{ duration: 0.18 }}>
+                  <p className="text-xs font-bold text-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Music size={12} /> Background Music
+                  </p>
+
+                  {/* Track list */}
+                  <div className="space-y-2 mb-4">
+                    {/* None option */}
+                    <button
+                      onClick={() => { setSelectedTrack(null); ambientPlayer.stop(); }}
+                      className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all text-left border"
+                      style={{ borderColor: !selectedTrack ? "hsl(var(--border))" : "transparent", backgroundColor: !selectedTrack ? "hsl(var(--muted))" : "transparent" }}>
+                      <span className="text-xl">🔇</span>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">No Music</p>
+                        <p className="text-xs text-muted-foreground">Silent presentation</p>
+                      </div>
+                      {!selectedTrack && <div className="ml-auto w-2 h-2 rounded-full bg-foreground" />}
+                    </button>
+
+                    {TRACKS.map(track => (
+                      <button key={track.id}
+                        onClick={() => { setSelectedTrack(track.id); if (playing) ambientPlayer.start(track.id, musicMuted ? 0 : musicVolume); }}
+                        className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all text-left border"
+                        style={{
+                          borderColor: selectedTrack === track.id ? track.color : "transparent",
+                          backgroundColor: selectedTrack === track.id ? `${track.color}15` : "hsl(var(--muted) / 0.4)",
+                        }}>
+                        <span className="text-xl">{track.emoji}</span>
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: selectedTrack === track.id ? track.color : "hsl(var(--foreground))" }}>{track.label}</p>
+                          <p className="text-xs text-muted-foreground">{track.description}</p>
+                        </div>
+                        {selectedTrack === track.id && <motion.div className="ml-auto w-2 h-2 rounded-full" style={{ backgroundColor: track.color }} animate={{ scale: [1, 1.4, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Volume */}
+                  {selectedTrack && (
+                    <div className="border-t border-border pt-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <button onClick={() => setMusicMuted(m => !m)} className="text-muted-foreground hover:text-foreground transition-colors">
+                          {musicMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                        </button>
+                        <p className="text-xs text-muted-foreground">Volume</p>
+                        <span className="text-xs text-muted-foreground ml-auto">{Math.round(musicVolume * 100)}%</span>
+                      </div>
+                      <input type="range" min={0} max={1} step={0.01} value={musicMuted ? 0 : musicVolume}
+                        onChange={e => { setMusicVolume(+e.target.value); setMusicMuted(false); }}
+                        className="w-full h-1.5 rounded-full appearance-none bg-muted cursor-pointer"
+                        style={{ accentColor: TRACKS.find(t => t.id === selectedTrack)?.color }} />
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button onClick={toggleFullscreen} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
             {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
           </button>
@@ -580,7 +875,33 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
                   </button>
                 </div>
 
-                <button onClick={() => setShowTips(t => !t)} className="mt-8 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                {/* Music picker on start screen */}
+                <div className="mt-8 w-full max-w-sm">
+                  <p className="text-xs text-muted-foreground text-center mb-3 flex items-center justify-center gap-1.5">
+                    <Music size={12} /> Choose background music for your video
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setSelectedTrack(null); ambientPlayer.stop(); }}
+                      className="rounded-xl px-3 py-2.5 border text-left transition-all hover:scale-105"
+                      style={{ borderColor: !selectedTrack ? "hsl(var(--foreground) / 0.4)" : "hsl(var(--border))", backgroundColor: !selectedTrack ? "hsl(var(--muted))" : "transparent" }}>
+                      <span className="text-base">🔇</span>
+                      <p className="text-xs font-semibold text-foreground mt-1">No Music</p>
+                    </button>
+                    {TRACKS.map(track => (
+                      <button key={track.id}
+                        onClick={() => setSelectedTrack(track.id)}
+                        className="rounded-xl px-3 py-2.5 border text-left transition-all hover:scale-105"
+                        style={{ borderColor: selectedTrack === track.id ? track.color : "hsl(var(--border))", backgroundColor: selectedTrack === track.id ? `${track.color}18` : "transparent" }}>
+                        <span className="text-base">{track.emoji}</span>
+                        <p className="text-xs font-semibold mt-1" style={{ color: selectedTrack === track.id ? track.color : "hsl(var(--foreground))" }}>{track.label}</p>
+                        <p className="text-[10px] text-muted-foreground">{track.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button onClick={() => setShowTips(t => !t)} className="mt-6 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
                   <Info size={12} /> How does Record & Download work?
                 </button>
                 <AnimatePresence>
