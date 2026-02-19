@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, RotateCcw, Maximize, Minimize, Video } from "lucide-react";
+import { Play, Pause, RotateCcw, Maximize, Minimize, Video, Circle, Download, Info, X } from "lucide-react";
 
 const LETTERS = ["i", "n", "y", "i", "t", "o"];
 const LETTER_COLORS = [
@@ -32,20 +32,17 @@ const SceneLogo = ({ progress }: { progress: number }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full"
       style={{ background: "radial-gradient(ellipse at center, hsl(240 30% 10%) 0%, hsl(var(--background)) 70%)" }}>
-      {/* Particles */}
       {Array.from({ length: 30 }).map((_, i) => (
         <motion.div key={i} className="absolute w-1 h-1 rounded-full"
           style={{ left: `${10 + (i * 2.7) % 80}%`, top: `${10 + (i * 3.1) % 80}%`, backgroundColor: LETTER_COLORS[i % 6] }}
           animate={{ opacity: [0, 0.8, 0], scale: [0, 1.5, 0] }}
           transition={{ duration: 2.5 + (i % 3), repeat: Infinity, delay: (i * 0.2) % 3 }} />
       ))}
-      {/* Rings */}
       {[1, 2, 3].map((r) => (
         <motion.div key={r} className="absolute rounded-full border" style={{ width: r * 180, height: r * 180, borderColor: `${LETTER_COLORS[r - 1]}30` }}
           animate={{ scale: [1, 1.06, 1], opacity: [0.3, 0.7, 0.3] }}
           transition={{ duration: 3 + r, repeat: Infinity }} />
       ))}
-      {/* Logo letters */}
       <div className="relative z-10 flex items-end gap-1 sm:gap-2 mb-6">
         {LETTERS.map((letter, i) => (
           <motion.span key={i} className="font-black" style={{ color: LETTER_COLORS[i], fontSize: "clamp(3.5rem,10vw,8rem)", textShadow: `0 0 40px ${LETTER_COLORS[i]}80` }}
@@ -60,7 +57,6 @@ const SceneLogo = ({ progress }: { progress: number }) => {
           .com
         </motion.span>
       </div>
-      {/* Tagline */}
       <motion.p className="text-xl sm:text-3xl font-light tracking-widest text-gradient-brand"
         style={{ letterSpacing: "0.2em" }} animate={{ opacity: progress > 0.4 ? 1 : 0 }} transition={{ duration: 0.5 }}>
         {TAGLINE.slice(0, taglineChars)}<span className="opacity-60">|</span>
@@ -155,7 +151,6 @@ const SceneGenerations = ({ progress }: { progress: number }) => (
       animate={{ opacity: progress > 0.1 ? 1 : 0 }} transition={{ duration: 0.4 }}>
       From grandparents to grandchildren — inyito.com brings every age group together.
     </motion.p>
-    {/* Connector line */}
     <div className="relative w-full max-w-3xl">
       <motion.div className="hidden sm:block absolute top-1/2 left-0 h-0.5 -translate-y-1/2 z-0"
         style={{ background: "linear-gradient(to right, hsl(var(--brand-gold)), hsl(var(--brand-blue)), hsl(var(--brand-purple)), hsl(var(--brand-green)))" }}
@@ -222,7 +217,6 @@ const SceneCTA = ({ progress }: { progress: number }) => {
       <motion.div className="absolute inset-0" animate={{ opacity: progress }} style={{
         background: `radial-gradient(ellipse at 50% 50%, ${BRAND_COLORS[gradIdx % BRAND_COLORS.length]}25 0%, hsl(var(--background)) 65%)`,
       }} />
-      {/* Confetti particles */}
       {BRAND_COLORS.map((c, i) => (
         Array.from({ length: 5 }).map((_, j) => (
           <motion.div key={`${i}-${j}`} className="absolute w-2 h-2 rounded-full" style={{ backgroundColor: c, left: `${10 + i * 13 + j * 3}%`, top: "70%" }}
@@ -271,6 +265,9 @@ const SceneCTA = ({ progress }: { progress: number }) => {
   );
 };
 
+/* ─── RECORDING STATE ─── */
+type RecordingState = "idle" | "countdown" | "recording" | "done";
+
 /* ─── MAIN CINEMA MODE COMPONENT ─── */
 interface CinemaModeProps {
   onClose: () => void;
@@ -281,18 +278,46 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
   const [elapsed, setElapsed] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [started, setStarted] = useState(false);
+  const [recordingState, setRecordingState] = useState<RecordingState>("idle");
+  const [countdown, setCountdown] = useState(3);
+  const [showTips, setShowTips] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
 
-  // Tick
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Playback tick
   useEffect(() => {
     if (!playing) return;
     const interval = setInterval(() => {
       setElapsed((e) => {
-        if (e >= TOTAL_DURATION) { setPlaying(false); return TOTAL_DURATION; }
+        if (e >= TOTAL_DURATION) {
+          setPlaying(false);
+          // Auto-stop recording when presentation ends
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            mediaRecorderRef.current.stop();
+          }
+          return TOTAL_DURATION;
+        }
         return e + 50;
       });
     }, 50);
     return () => clearInterval(interval);
   }, [playing]);
+
+  // Recording duration counter
+  useEffect(() => {
+    if (recordingState === "recording") {
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
+    } else {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (recordingState !== "done") setRecordingDuration(0);
+    }
+    return () => { if (recordingTimerRef.current) clearInterval(recordingTimerRef.current); };
+  }, [recordingState]);
 
   // Current scene
   let sceneIndex = 0;
@@ -311,7 +336,16 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
     setPlaying(true);
   }, [elapsed, started]);
 
-  const handleReset = () => { setElapsed(0); setPlaying(false); setStarted(false); };
+  const handleReset = () => {
+    setElapsed(0);
+    setPlaying(false);
+    setStarted(false);
+    setRecordingState("idle");
+    setRecordingDuration(0);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+  };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -320,6 +354,90 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
       document.exitFullscreen().then(() => setIsFullscreen(false));
     }
   };
+
+  /* ─── RECORD & DOWNLOAD ─── */
+  const handleRecordDownload = useCallback(async () => {
+    try {
+      // Ask user to share their screen/tab
+      const stream = await (navigator.mediaDevices as any).getDisplayMedia({
+        video: { width: 1920, height: 1080, frameRate: 30 },
+        audio: false,
+      });
+
+      chunksRef.current = [];
+
+      // Pick best supported format
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm")
+        ? "video/webm"
+        : "video/mp4";
+
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `inyito-promo-${Date.now()}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setRecordingState("done");
+      };
+
+      // Handle user stopping share from browser UI
+      stream.getVideoTracks()[0].onended = () => {
+        if (recorder.state === "recording") recorder.stop();
+        setRecordingState("idle");
+        setPlaying(false);
+      };
+
+      // Start countdown, then begin recording + playback
+      setRecordingState("countdown");
+      setCountdown(3);
+      setElapsed(0);
+      setStarted(false);
+      setPlaying(false);
+
+      let count = 3;
+      const countInterval = setInterval(() => {
+        count -= 1;
+        setCountdown(count);
+        if (count <= 0) {
+          clearInterval(countInterval);
+          recorder.start(100);
+          setRecordingState("recording");
+          setRecordingDuration(0);
+          // Small delay so the "recording" UI is visible before animations start
+          setTimeout(() => {
+            setStarted(true);
+            setPlaying(true);
+          }, 200);
+        }
+      }, 1000);
+
+    } catch (err) {
+      // User cancelled or browser doesn't support
+      console.warn("Screen capture cancelled or not supported:", err);
+      setRecordingState("idle");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    setPlaying(false);
+  }, []);
+
+  const formatTime = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
   const sceneComponents = [
     <SceneLogo progress={sceneProgress} />,
@@ -331,12 +449,84 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
 
   return (
     <div className="fixed inset-0 z-[100] bg-background flex flex-col">
-      {/* Top bar */}
+
+      {/* ─── COUNTDOWN OVERLAY ─── */}
+      <AnimatePresence>
+        {recordingState === "countdown" && (
+          <motion.div className="absolute inset-0 z-[200] flex flex-col items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.85)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <p className="text-muted-foreground text-sm uppercase tracking-widest mb-6 font-semibold">Recording starts in</p>
+            <AnimatePresence mode="wait">
+              <motion.span key={countdown}
+                className="font-black text-center"
+                style={{ fontSize: "clamp(6rem,20vw,14rem)", background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+                initial={{ scale: 1.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.4, type: "spring" }}>
+                {countdown}
+              </motion.span>
+            </AnimatePresence>
+            <p className="text-muted-foreground text-sm mt-6">Get ready — Cinema Mode will auto-play</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── DONE OVERLAY ─── */}
+      <AnimatePresence>
+        {recordingState === "done" && (
+          <motion.div className="absolute inset-0 z-[200] flex flex-col items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.88)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.div className="text-6xl mb-4" animate={{ scale: [0.5, 1.2, 1] }} transition={{ duration: 0.6 }}>🎬</motion.div>
+            <h2 className="text-3xl font-black text-foreground mb-2">Video Downloaded!</h2>
+            <p className="text-muted-foreground text-base text-center max-w-sm mb-8">
+              Your <strong>inyito-promo.webm</strong> file is in your Downloads folder.
+            </p>
+            {/* Platform tips */}
+            <div className="rounded-2xl border border-border bg-card/80 backdrop-blur p-5 max-w-sm w-full mx-4 mb-6">
+              <p className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Info size={14} /> Upload to platforms</p>
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2"><span className="text-green-400 font-bold">✓</span><span><strong className="text-foreground">YouTube</strong> — upload WebM directly, up to 4K</span></div>
+                <div className="flex items-center gap-2"><span className="text-green-400 font-bold">✓</span><span><strong className="text-foreground">Twitter / X</strong> — WebM supported, max 512MB</span></div>
+                <div className="flex items-center gap-2"><span className="text-green-400 font-bold">✓</span><span><strong className="text-foreground">Facebook</strong> — WebM accepted</span></div>
+                <div className="flex items-center gap-2"><span className="text-yellow-400 font-bold">→</span><span><strong className="text-foreground">Instagram / TikTok</strong> — convert to MP4 first via <a href="https://cloudconvert.com/webm-to-mp4" target="_blank" rel="noopener noreferrer" className="underline text-primary">CloudConvert.com</a></span></div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setRecordingState("idle"); handleReset(); }}
+                className="px-6 py-2.5 rounded-full border border-border text-sm text-muted-foreground hover:bg-muted transition-colors">
+                Record Again
+              </button>
+              <button onClick={handleRecordDownload}
+                className="px-6 py-2.5 rounded-full font-bold text-sm text-background transition-all hover:scale-105"
+                style={{ background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)))" }}>
+                New Recording
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── TOP BAR ─── */}
       <div className="flex items-center justify-between px-4 sm:px-8 py-3 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <Video size={18} className="text-primary" />
-          <span className="font-bold text-sm text-foreground tracking-wide">Cinema Mode</span>
-          <span className="text-xs text-muted-foreground hidden sm:inline">— Screen record this window to create your promo video</span>
+          {/* Recording indicator */}
+          {recordingState === "recording" ? (
+            <motion.div className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold"
+              style={{ background: "hsl(0 85% 55% / 0.15)", color: "hsl(0 85% 65%)", border: "1px solid hsl(0 85% 55% / 0.3)" }}>
+              <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1, repeat: Infinity }}
+                className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(0 85% 65%)" }} />
+              REC {formatTime(recordingDuration)}
+            </motion.div>
+          ) : (
+            <>
+              <Video size={18} className="text-primary" />
+              <span className="font-bold text-sm text-foreground tracking-wide">Cinema Mode</span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">— Screen record or use Record & Download</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* Scene indicators */}
@@ -358,14 +548,13 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
         </div>
       </div>
 
-      {/* Main stage */}
+      {/* ─── MAIN STAGE ─── */}
       <div className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div key={sceneIndex} className="absolute inset-0"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}>
             {!started ? (
-              /* Start screen */
               <div className="flex flex-col items-center justify-center h-full"
                 style={{ background: "radial-gradient(ellipse at center, hsl(240 30% 10%) 0%, hsl(var(--background)) 70%)" }}>
                 <div className="flex items-end gap-1 mb-6">
@@ -374,14 +563,36 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
                   ))}
                   <span className="text-muted-foreground font-bold self-end pb-1" style={{ fontSize: "clamp(1rem,2.5vw,2rem)" }}>.com</span>
                 </div>
-                <p className="text-gradient-brand text-2xl font-light tracking-widest mb-12" style={{ letterSpacing: "0.2em" }}>The Future is Together</p>
-                <button onClick={handlePlay}
-                  className="flex items-center gap-3 px-10 py-5 rounded-full font-bold text-xl text-background transition-transform hover:scale-105"
-                  style={{ background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)), hsl(var(--brand-gold)))" }}>
-                  <Play size={28} fill="currentColor" /> Play Full Presentation
+                <p className="text-gradient-brand text-2xl font-light tracking-widest mb-10" style={{ letterSpacing: "0.2em" }}>The Future is Together</p>
+
+                {/* Two action buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                  <button onClick={handlePlay}
+                    className="flex items-center gap-3 px-8 py-4 rounded-full font-bold text-lg text-background transition-transform hover:scale-105"
+                    style={{ background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)), hsl(var(--brand-gold)))" }}>
+                    <Play size={22} fill="currentColor" /> Play Presentation
+                  </button>
+                  <button onClick={handleRecordDownload}
+                    className="flex items-center gap-3 px-8 py-4 rounded-full font-bold text-lg border-2 transition-all hover:scale-105"
+                    style={{ borderColor: "hsl(0 85% 55%)", color: "hsl(0 85% 65%)", background: "hsl(0 85% 55% / 0.1)" }}>
+                    <Circle size={18} fill="hsl(0 85% 65%)" />
+                    Record & Download
+                  </button>
+                </div>
+
+                <button onClick={() => setShowTips(t => !t)} className="mt-8 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                  <Info size={12} /> How does Record & Download work?
                 </button>
-                <p className="text-muted-foreground text-sm mt-6">Duration: {Math.ceil(TOTAL_DURATION / 1000)}s · 5 scenes</p>
-                <p className="text-muted-foreground text-xs mt-2">💡 Press Fullscreen, then screen-record for best quality</p>
+                <AnimatePresence>
+                  {showTips && (
+                    <motion.div className="mt-4 rounded-xl border border-border bg-card/80 p-4 max-w-sm text-xs text-muted-foreground text-center"
+                      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      Your browser will ask you to <strong className="text-foreground">share this tab</strong>. Once selected, a 3-second countdown begins, then the presentation auto-plays and records. When it finishes, a <strong className="text-foreground">.webm video file</strong> is automatically downloaded to your device.
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <p className="text-muted-foreground text-xs mt-4">Duration: {Math.ceil(TOTAL_DURATION / 1000)}s · 5 scenes · ~{Math.round(TOTAL_DURATION / 1000 * 8 / 8)}MB est.</p>
               </div>
             ) : (
               sceneComponents[sceneIndex]
@@ -390,13 +601,17 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
         </AnimatePresence>
       </div>
 
-      {/* Bottom controls */}
+      {/* ─── BOTTOM CONTROLS ─── */}
       {started && (
         <div className="px-4 sm:px-8 py-4 border-t border-border bg-background/95 backdrop-blur-sm">
           {/* Progress bar */}
           <div className="relative h-1.5 bg-muted rounded-full mb-4 cursor-pointer"
-            onClick={(e) => { const rect = e.currentTarget.getBoundingClientRect(); const pct = (e.clientX - rect.left) / rect.width; setElapsed(pct * TOTAL_DURATION); }}>
-            {/* Scene segments */}
+            onClick={(e) => {
+              if (recordingState === "recording") return; // don't allow scrubbing while recording
+              const rect = e.currentTarget.getBoundingClientRect();
+              const pct = (e.clientX - rect.left) / rect.width;
+              setElapsed(pct * TOTAL_DURATION);
+            }}>
             {SCENES.map((s, i) => {
               const start = SCENES.slice(0, i).reduce((a, x) => a + x.duration, 0) / TOTAL_DURATION;
               const width = s.duration / TOTAL_DURATION;
@@ -406,27 +621,48 @@ const CinemaMode = ({ onClose }: CinemaModeProps) => {
               );
             })}
             <motion.div className="absolute top-0 left-0 h-full rounded-full"
-              style={{ width: `${totalProgress * 100}%`, background: `linear-gradient(to right, ${BRAND_COLORS[0]}, ${BRAND_COLORS[2]}, ${BRAND_COLORS[4]})` }} />
-            {/* Thumb */}
+              style={{ width: `${totalProgress * 100}%`, background: recordingState === "recording"
+                ? "linear-gradient(to right, hsl(0 85% 55%), hsl(0 85% 65%))"
+                : `linear-gradient(to right, ${BRAND_COLORS[0]}, ${BRAND_COLORS[2]}, ${BRAND_COLORS[4]})` }} />
             <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-foreground border-2 border-background shadow-lg"
               style={{ left: `calc(${totalProgress * 100}% - 8px)` }} />
           </div>
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button onClick={handleReset} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
-                <RotateCcw size={18} />
-              </button>
-              <button onClick={() => playing ? setPlaying(false) : handlePlay()}
-                className="flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-sm text-background transition-all hover:scale-105"
-                style={{ background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)))" }}>
-                {playing ? <><Pause size={16} fill="currentColor" /> Pause</> : <><Play size={16} fill="currentColor" /> Play</>}
-              </button>
+              {recordingState !== "recording" && (
+                <button onClick={handleReset} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                  <RotateCcw size={18} />
+                </button>
+              )}
+              {recordingState === "recording" ? (
+                <button onClick={stopRecording}
+                  className="flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-sm transition-all hover:scale-105"
+                  style={{ background: "hsl(0 85% 55% / 0.15)", color: "hsl(0 85% 65%)", border: "1px solid hsl(0 85% 55% / 0.4)" }}>
+                  <Circle size={14} fill="hsl(0 85% 65%)" /> Stop & Download
+                </button>
+              ) : (
+                <button onClick={() => playing ? setPlaying(false) : handlePlay()}
+                  className="flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-sm text-background transition-all hover:scale-105"
+                  style={{ background: "linear-gradient(135deg, hsl(var(--brand-blue)), hsl(var(--brand-purple)))" }}>
+                  {playing ? <><Pause size={16} fill="currentColor" /> Pause</> : <><Play size={16} fill="currentColor" /> Play</>}
+                </button>
+              )}
               <span className="text-muted-foreground text-xs font-mono">
                 {Math.floor(elapsed / 1000)}s / {Math.floor(TOTAL_DURATION / 1000)}s
               </span>
             </div>
             <div className="flex items-center gap-2">
+              {recordingState === "recording" && (
+                <span className="text-xs text-muted-foreground font-mono mr-2">{formatTime(recordingDuration)}</span>
+              )}
+              {recordingState === "idle" && started && (
+                <button onClick={handleRecordDownload}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all hover:scale-105"
+                  style={{ borderColor: "hsl(0 85% 55% / 0.5)", color: "hsl(0 85% 65%)", background: "hsl(0 85% 55% / 0.08)" }}>
+                  <Download size={12} /> Record & Download
+                </button>
+              )}
               <span className="text-xs font-semibold px-3 py-1 rounded-full border"
                 style={{ color: SCENES[sceneIndex].color, borderColor: `${SCENES[sceneIndex].color}50`, backgroundColor: `${SCENES[sceneIndex].color}15` }}>
                 Scene {sceneIndex + 1}: {SCENES[sceneIndex].label}
