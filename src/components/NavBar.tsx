@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ArrowLeft, Home } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isHome = location.pathname === "/";
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
@@ -26,30 +30,43 @@ const NavBar = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="flex gap-0.5">
-              {["i", "n", "y", "i", "t", "o"].map((letter, i) => {
-                const colors = [
-                  "hsl(var(--brand-blue))",
-                  "hsl(var(--brand-green))",
-                  "hsl(var(--brand-gold))",
-                  "hsl(var(--brand-purple))",
-                  "hsl(var(--brand-orange))",
-                  "hsl(var(--brand-red))",
-                ];
-                return (
-                  <span
-                    key={i}
-                    className="text-2xl font-black tracking-tight"
-                    style={{ color: colors[i] }}
-                  >
-                    {letter}
-                  </span>
-                );
-              })}
+          {/* Logo + Back Button */}
+          <div className="flex items-center gap-3">
+            {!isHome && (
+              <motion.button
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                onClick={() => navigate("/")}
+                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                <Home size={14} />
+              </motion.button>
+            )}
+            <div className="flex items-center gap-2" style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
+              <div className="flex gap-0.5">
+                {["i", "n", "y", "i", "t", "o"].map((letter, i) => {
+                  const colors = [
+                    "hsl(var(--brand-blue))",
+                    "hsl(var(--brand-green))",
+                    "hsl(var(--brand-gold))",
+                    "hsl(var(--brand-purple))",
+                    "hsl(var(--brand-orange))",
+                    "hsl(var(--brand-red))",
+                  ];
+                  return (
+                    <span
+                      key={i}
+                      className="text-2xl font-black tracking-tight"
+                      style={{ color: colors[i] }}
+                    >
+                      {letter}
+                    </span>
+                  );
+                })}
+              </div>
+              <span className="text-muted-foreground text-sm font-medium">.com</span>
             </div>
-            <span className="text-muted-foreground text-sm font-medium">.com</span>
           </div>
 
           {/* Desktop Nav */}
