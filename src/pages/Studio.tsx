@@ -8,6 +8,7 @@ import { useMediaRecorder, RecordingState } from "@/hooks/useMediaRecorder";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import VideoEditor from "@/components/studio/VideoEditor";
 import {
   Monitor,
   Camera,
@@ -27,6 +28,7 @@ import {
   CloudUpload,
   FolderOpen,
   Loader2,
+  Wand2,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -54,6 +56,8 @@ const Studio = () => {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
+  const [editingMode, setEditingMode] = useState(false);
+  const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -214,29 +218,31 @@ const Studio = () => {
 
   /* ---- Download ---- */
   const handleDownload = useCallback(() => {
-    if (!recordedUrl) return;
+    const url = exportedBlob ? URL.createObjectURL(exportedBlob) : recordedUrl;
+    if (!url) return;
     const a = document.createElement("a");
-    a.href = recordedUrl;
+    a.href = url;
     a.download = `recording-${Date.now()}.webm`;
     a.click();
-  }, [recordedUrl]);
+  }, [recordedUrl, exportedBlob]);
 
   /* ---- Save to Cloud ---- */
   const handleSaveToCloud = useCallback(async () => {
-    if (!recordedBlob || !user) return;
+    const blob = exportedBlob || recordedBlob;
+    if (!blob || !user) return;
     setSaving(true);
     try {
       const fileName = `${user.id}/${Date.now()}.webm`;
       const { error: uploadErr } = await supabase.storage
         .from("recordings")
-        .upload(fileName, recordedBlob, { contentType: "video/webm" });
+        .upload(fileName, blob, { contentType: "video/webm" });
       if (uploadErr) throw uploadErr;
 
       await supabase.from("recordings").insert({
         user_id: user.id,
         title: saveTitle || `Recording ${new Date().toLocaleString()}`,
         file_url: fileName,
-        file_size: recordedBlob.size,
+        file_size: blob.size,
         duration_ms: duration,
         source_type: sourceType,
       });
@@ -247,7 +253,7 @@ const Studio = () => {
     } finally {
       setSaving(false);
     }
-  }, [recordedBlob, user, saveTitle, duration, sourceType, navigate]);
+  }, [recordedBlob, exportedBlob, user, saveTitle, duration, sourceType, navigate]);
 
   useEffect(() => {
     return () => {
@@ -261,6 +267,21 @@ const Studio = () => {
   const isRecording = state === "recording";
   const isPaused = state === "paused";
   const isStopped = state === "stopped";
+
+  /* ---- Active blob for saving (exported or original) ---- */
+  const activeBlob = exportedBlob || recordedBlob;
+  const activeUrl = exportedBlob ? URL.createObjectURL(exportedBlob) : recordedUrl;
+
+  const handleExportDone = (blob: Blob) => {
+    setExportedBlob(blob);
+    setEditingMode(false);
+  };
+
+  const handleReset = () => {
+    setEditingMode(false);
+    setExportedBlob(null);
+    resetRecording();
+  };
 
   return (
     <div className="bg-background text-foreground min-h-screen overflow-x-hidden">
@@ -318,56 +339,67 @@ const Studio = () => {
           </Button>
         </motion.div>
 
-        {/* Preview / Playback Area */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
-          className="relative aspect-video w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border border-border bg-card mb-8"
-        >
-          {/* Hidden helper elements */}
-          <video ref={screenVideoRef} autoPlay muted playsInline className="hidden" />
-          <video ref={cameraVideoRef} autoPlay muted playsInline className="hidden" />
-          <canvas ref={canvasRef} className="hidden" />
+        {/* Editor mode */}
+        {isStopped && editingMode && recordedUrl && (
+          <VideoEditor
+            videoUrl={recordedUrl}
+            videoBlob={recordedBlob!}
+            onExport={handleExportDone}
+          />
+        )}
 
-          {/* IDLE placeholder */}
-          {isIdle && !isStopped && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-              <Video size={48} className="opacity-30" />
-              <p className="text-sm">Select a source and hit Record</p>
-            </div>
-          )}
+        {/* Preview / Playback Area (shown when NOT editing) */}
+        {!editingMode && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="relative aspect-video w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border border-border bg-card mb-8"
+          >
+            {/* Hidden helper elements */}
+            <video ref={screenVideoRef} autoPlay muted playsInline className="hidden" />
+            <video ref={cameraVideoRef} autoPlay muted playsInline className="hidden" />
+            <canvas ref={canvasRef} className="hidden" />
 
-          {/* RECORDING indicator */}
-          {(isRecording || isPaused) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`inline-block w-3 h-3 rounded-full ${
-                    isRecording ? "bg-destructive animate-pulse" : "bg-muted-foreground"
-                  }`}
-                />
-                <span className="text-sm font-semibold">
-                  {isRecording ? "Recording" : "Paused"}
-                </span>
+            {/* IDLE placeholder */}
+            {isIdle && !isStopped && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                <Video size={48} className="opacity-30" />
+                <p className="text-sm">Select a source and hit Record</p>
               </div>
-              <div className="flex items-center gap-1.5 text-lg font-mono font-bold text-foreground">
-                <Timer size={18} />
-                {formatTime(duration)}
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* STOPPED — playback */}
-          {isStopped && recordedUrl && (
-            <video
-              ref={previewVideoRef}
-              src={recordedUrl}
-              controls
-              className="w-full h-full object-contain"
-            />
-          )}
-        </motion.div>
+            {/* RECORDING indicator */}
+            {(isRecording || isPaused) && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`inline-block w-3 h-3 rounded-full ${
+                      isRecording ? "bg-destructive animate-pulse" : "bg-muted-foreground"
+                    }`}
+                  />
+                  <span className="text-sm font-semibold">
+                    {isRecording ? "Recording" : "Paused"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-lg font-mono font-bold text-foreground">
+                  <Timer size={18} />
+                  {formatTime(duration)}
+                </div>
+              </div>
+            )}
+
+            {/* STOPPED — playback */}
+            {isStopped && activeUrl && (
+              <video
+                ref={previewVideoRef}
+                src={activeUrl}
+                controls
+                className="w-full h-full object-contain"
+              />
+            )}
+          </motion.div>
+        )}
 
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-center gap-4">
@@ -414,7 +446,7 @@ const Studio = () => {
               </motion.div>
             )}
 
-            {isStopped && (
+            {isStopped && !editingMode && (
               <motion.div
                 key="done"
                 initial={{ opacity: 0 }}
@@ -423,11 +455,19 @@ const Studio = () => {
                 className="flex flex-col items-center gap-4"
               >
                 <div className="flex items-center gap-3">
+                  <Button
+                    size="lg"
+                    className="gap-2 glow-purple font-bold"
+                    onClick={() => setEditingMode(true)}
+                  >
+                    <Wand2 size={18} />
+                    Edit Video
+                  </Button>
                   <Button size="lg" className="gap-2 glow-blue font-bold" onClick={handleDownload}>
                     <Download size={18} />
                     Download
                   </Button>
-                  <Button variant="secondary" size="lg" className="gap-2" onClick={resetRecording}>
+                  <Button variant="secondary" size="lg" className="gap-2" onClick={handleReset}>
                     <RotateCcw size={18} />
                     New Recording
                   </Button>
