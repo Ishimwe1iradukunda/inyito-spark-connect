@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ArrowLeft, Home } from "lucide-react";
+import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const NavBar = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -10,6 +11,7 @@ const NavBar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isHome = location.pathname === "/";
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
@@ -17,7 +19,18 @@ const NavBar = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navLinks = ["About", "Features", "Generations", "Community", "Studio"];
+  const routeLinks: { label: string; path: string }[] = [
+    { label: "Studio", path: "/studio" },
+    ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
+  ];
+
+  const anchorLinks = ["About", "Features", "Generations", "Community"];
+
+  const handleNavClick = (e: React.MouseEvent, path: string) => {
+    e.preventDefault();
+    navigate(path);
+    setMenuOpen(false);
+  };
 
   return (
     <motion.nav
@@ -43,7 +56,7 @@ const NavBar = () => {
                 <Home size={14} />
               </motion.button>
             )}
-            <div className="flex items-center gap-2" style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
               <div className="flex gap-0.5">
                 {["i", "n", "y", "i", "t", "o"].map((letter, i) => {
                   const colors = [
@@ -55,11 +68,7 @@ const NavBar = () => {
                     "hsl(var(--brand-red))",
                   ];
                   return (
-                    <span
-                      key={i}
-                      className="text-2xl font-black tracking-tight"
-                      style={{ color: colors[i] }}
-                    >
+                    <span key={i} className="text-2xl font-black tracking-tight" style={{ color: colors[i] }}>
                       {letter}
                     </span>
                   );
@@ -70,61 +79,68 @@ const NavBar = () => {
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <a
-                key={link}
-                href={link === "Studio" ? "/studio" : `#${link.toLowerCase()}`}
-                onClick={link === "Studio" ? (e) => { e.preventDefault(); navigate("/studio"); } : undefined}
-                className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
-              >
+          <div className="hidden md:flex items-center gap-6">
+            {anchorLinks.map((link) => (
+              <a key={link} href={`#${link.toLowerCase()}`} className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
                 {link}
+              </a>
+            ))}
+            {routeLinks.map(({ label, path }) => (
+              <a key={path} href={path} onClick={(e) => handleNavClick(e, path)} className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+                {label}
               </a>
             ))}
           </div>
 
-          {/* CTA Button */}
-          <div className="hidden md:flex">
-            <Button
-              className="bg-primary text-primary-foreground glow-blue font-semibold px-6"
-              size="sm"
-            >
-              Get Early Access
-            </Button>
+          {/* Auth Buttons */}
+          <div className="hidden md:flex items-center gap-2">
+            {user ? (
+              <>
+                <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/my-recordings")}>
+                  <FolderOpen size={14} />
+                  Library
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-2" onClick={() => signOut()}>
+                  <LogOut size={14} />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button className="glow-blue font-semibold px-6 gap-2" size="sm" onClick={() => navigate("/auth")}>
+                <LogIn size={14} />
+                Sign In
+              </Button>
+            )}
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden text-foreground p-2"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
+          <button className="md:hidden text-foreground p-2" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
 
         {/* Mobile Menu */}
         {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="md:hidden pb-4 border-t border-border mt-1"
-          >
-            {navLinks.map((link) => (
-              <a
-                key={link}
-                href={link === "Studio" ? "/studio" : `#${link.toLowerCase()}`}
-                onClick={(e) => {
-                  if (link === "Studio") { e.preventDefault(); navigate("/studio"); }
-                  setMenuOpen(false);
-                }}
-                className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium"
-              >
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden pb-4 border-t border-border mt-1">
+            {anchorLinks.map((link) => (
+              <a key={link} href={`#${link.toLowerCase()}`} onClick={() => setMenuOpen(false)} className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium">
                 {link}
               </a>
             ))}
-            <Button className="w-full mt-3 bg-primary text-primary-foreground glow-blue font-semibold">
-              Get Early Access
-            </Button>
+            {routeLinks.map(({ label, path }) => (
+              <a key={path} href={path} onClick={(e) => handleNavClick(e, path)} className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium">
+                {label}
+              </a>
+            ))}
+            {user ? (
+              <Button variant="ghost" className="w-full mt-3 gap-2" onClick={() => { signOut(); setMenuOpen(false); }}>
+                <LogOut size={14} /> Sign Out
+              </Button>
+            ) : (
+              <Button className="w-full mt-3 glow-blue font-semibold gap-2" onClick={() => { navigate("/auth"); setMenuOpen(false); }}>
+                <LogIn size={14} /> Sign In
+              </Button>
+            )}
           </motion.div>
         )}
       </div>

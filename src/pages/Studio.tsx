@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import NavBar from "@/components/NavBar";
 import SiteFooter from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useMediaRecorder, RecordingState } from "@/hooks/useMediaRecorder";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import {
   Monitor,
   Camera,
@@ -20,6 +24,9 @@ import {
   Layers,
   Settings,
   Timer,
+  CloudUpload,
+  FolderOpen,
+  Loader2,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +52,10 @@ const Studio = () => {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   /* Refs for video elements */
   const screenVideoRef = useRef<HTMLVideoElement>(null);
@@ -210,7 +221,34 @@ const Studio = () => {
     a.click();
   }, [recordedUrl]);
 
-  /* Cleanup streams on unmount */
+  /* ---- Save to Cloud ---- */
+  const handleSaveToCloud = useCallback(async () => {
+    if (!recordedBlob || !user) return;
+    setSaving(true);
+    try {
+      const fileName = `${user.id}/${Date.now()}.webm`;
+      const { error: uploadErr } = await supabase.storage
+        .from("recordings")
+        .upload(fileName, recordedBlob, { contentType: "video/webm" });
+      if (uploadErr) throw uploadErr;
+
+      await supabase.from("recordings").insert({
+        user_id: user.id,
+        title: saveTitle || `Recording ${new Date().toLocaleString()}`,
+        file_url: fileName,
+        file_size: recordedBlob.size,
+        duration_ms: duration,
+        source_type: sourceType,
+      });
+      setSaveTitle("");
+      navigate("/my-recordings");
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [recordedBlob, user, saveTitle, duration, sourceType, navigate]);
+
   useEffect(() => {
     return () => {
       screenStream?.getTracks().forEach((t) => t.stop());
@@ -382,16 +420,49 @@ const Studio = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-3"
+                className="flex flex-col items-center gap-4"
               >
-                <Button size="lg" className="gap-2 glow-blue font-bold" onClick={handleDownload}>
-                  <Download size={18} />
-                  Download
-                </Button>
-                <Button variant="secondary" size="lg" className="gap-2" onClick={resetRecording}>
-                  <RotateCcw size={18} />
-                  New Recording
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button size="lg" className="gap-2 glow-blue font-bold" onClick={handleDownload}>
+                    <Download size={18} />
+                    Download
+                  </Button>
+                  <Button variant="secondary" size="lg" className="gap-2" onClick={resetRecording}>
+                    <RotateCcw size={18} />
+                    New Recording
+                  </Button>
+                </div>
+                {/* Save to Cloud */}
+                {user ? (
+                  <div className="flex items-center gap-2 w-full max-w-md">
+                    <Input
+                      placeholder="Recording title..."
+                      value={saveTitle}
+                      onChange={(e) => setSaveTitle(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      className="gap-2 shrink-0"
+                      onClick={handleSaveToCloud}
+                      disabled={saving}
+                    >
+                      {saving ? <Loader2 size={18} className="animate-spin" /> : <CloudUpload size={18} />}
+                      {saving ? "Saving..." : "Save to Cloud"}
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2 text-muted-foreground"
+                    onClick={() => navigate("/auth")}
+                  >
+                    <CloudUpload size={16} />
+                    Sign in to save to cloud
+                  </Button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
