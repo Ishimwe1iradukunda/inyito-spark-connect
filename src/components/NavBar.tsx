@@ -17,7 +17,7 @@ const NavBar = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const navLinks = ["About", "Features", "Generations", "Community"];
+  const navLinks = ["About", "Features", "Generations", "Community", "Studio"];
 
   return (
     <motion.nav
@@ -74,7 +74,8 @@ const NavBar = () => {
             {navLinks.map((link) => (
               <a
                 key={link}
-                href={`#${link.toLowerCase()}`}
+                href={link === "Studio" ? "/studio" : `#${link.toLowerCase()}`}
+                onClick={link === "Studio" ? (e) => { e.preventDefault(); navigate("/studio"); } : undefined}
                 className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
               >
                 {link}
@@ -111,9 +112,12 @@ const NavBar = () => {
             {navLinks.map((link) => (
               <a
                 key={link}
-                href={`#${link.toLowerCase()}`}
+                href={link === "Studio" ? "/studio" : `#${link.toLowerCase()}`}
+                onClick={(e) => {
+                  if (link === "Studio") { e.preventDefault(); navigate("/studio"); }
+                  setMenuOpen(false);
+                }}
                 className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium"
-                onClick={() => setMenuOpen(false)}
               >
                 {link}
               </a>
