@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import VideoEditor from "@/components/studio/VideoEditor";
+import ShareModal from "@/components/studio/ShareModal";
 import {
   Monitor,
   Camera,
@@ -29,6 +30,7 @@ import {
   FolderOpen,
   Loader2,
   Wand2,
+  Share2,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -58,6 +60,7 @@ const Studio = () => {
   const [saveTitle, setSaveTitle] = useState("");
   const [editingMode, setEditingMode] = useState(false);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -467,6 +470,10 @@ const Studio = () => {
                     <Download size={18} />
                     Download
                   </Button>
+                  <Button size="lg" variant="secondary" className="gap-2" onClick={() => setShareOpen(true)}>
+                    <Share2 size={18} />
+                    Share
+                  </Button>
                   <Button variant="secondary" size="lg" className="gap-2" onClick={handleReset}>
                     <RotateCcw size={18} />
                     New Recording
@@ -527,6 +534,7 @@ const Studio = () => {
         </motion.div>
       </main>
 
+      <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={saveTitle} />
       <SiteFooter />
     </div>
   );

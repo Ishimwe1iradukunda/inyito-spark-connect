@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import ShareModal from "@/components/studio/ShareModal";
 import {
   Video,
   Trash2,
@@ -17,6 +18,7 @@ import {
   Layers,
   Search,
   Film,
+  Share2,
 } from "lucide-react";
 
 interface Recording {
@@ -50,6 +52,8 @@ const MyRecordings = () => {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTitle, setShareTitle] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -150,6 +154,9 @@ const MyRecordings = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      <Button variant="ghost" size="icon" onClick={() => { setShareTitle(rec.title); setShareOpen(true); }} title="Share">
+                        <Share2 size={16} />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDownload(rec)} title="Download">
                         <Download size={16} />
                       </Button>
@@ -164,6 +171,7 @@ const MyRecordings = () => {
           </div>
         )}
       </main>
+      <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={shareTitle} />
       <SiteFooter />
     </div>
   );
