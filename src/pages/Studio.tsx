@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import NavBar from "@/components/NavBar";
 import SiteFooter from "@/components/SiteFooter";
@@ -66,6 +66,8 @@ const Studio = () => {
   const [editingMode, setEditingMode] = useState(false);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [previewMuted, setPreviewMuted] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -193,7 +195,7 @@ const Studio = () => {
     [state]
   );
 
-  /* ---- Handle record start ---- */
+  /* ---- Handle record start with countdown ---- */
   const handleStart = useCallback(async () => {
     let stream: MediaStream | null = null;
 
@@ -221,6 +223,13 @@ const Studio = () => {
         /* mic denied — continue without */
       }
     }
+
+    // Countdown 3-2-1
+    for (let i = 3; i >= 1; i--) {
+      setCountdown(i);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    setCountdown(null);
 
     startRecording(stream);
   }, [sourceType, micEnabled, acquireScreen, acquireCamera, buildCompositeStream, startRecording]);
@@ -292,7 +301,23 @@ const Studio = () => {
 
   /* ---- Active blob for saving (exported or original) ---- */
   const activeBlob = exportedBlob || recordedBlob;
-  const activeUrl = exportedBlob ? URL.createObjectURL(exportedBlob) : recordedUrl;
+  const activeUrl = useMemo(() => {
+    if (exportedBlob) {
+      const url = URL.createObjectURL(exportedBlob);
+      return url;
+    }
+    return recordedUrl;
+  }, [exportedBlob, recordedUrl]);
+
+  // Cleanup exported blob URL
+  useEffect(() => {
+    if (!exportedBlob) return;
+    return () => {
+      if (activeUrl && activeUrl !== recordedUrl) {
+        URL.revokeObjectURL(activeUrl);
+      }
+    };
+  }, [activeUrl, recordedUrl, exportedBlob]);
 
   const handleExportDone = (blob: Blob) => {
     setExportedBlob(blob);
@@ -417,8 +442,22 @@ const Studio = () => {
             <video ref={cameraVideoRef} autoPlay muted playsInline className="hidden" />
             <canvas ref={canvasRef} className="hidden" />
 
+            {/* Countdown overlay */}
+            {countdown !== null && (
+              <motion.div
+                key={countdown}
+                initial={{ scale: 2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
+                className="absolute inset-0 flex items-center justify-center z-50 bg-background/60 backdrop-blur-sm"
+              >
+                <span className="text-8xl font-black text-primary drop-shadow-lg">{countdown}</span>
+              </motion.div>
+            )}
+
             {/* IDLE placeholder */}
-            {isIdle && !isStopped && (
+            {isIdle && !isStopped && !countdown && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
                 <Video size={48} className="opacity-30" />
                 <p className="text-sm">Select a source and hit Record</p>
@@ -447,12 +486,24 @@ const Studio = () => {
 
             {/* STOPPED — playback */}
             {isStopped && activeUrl && (
-              <video
-                ref={previewVideoRef}
-                src={activeUrl}
-                controls
-                className="w-full h-full object-contain"
-              />
+              <div className="relative w-full h-full">
+                <video
+                  ref={previewVideoRef}
+                  src={activeUrl}
+                  controls
+                  muted={previewMuted}
+                  className="w-full h-full object-contain"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8 bg-background/60 backdrop-blur-sm hover:bg-background/80 z-10"
+                  onClick={() => setPreviewMuted((v) => !v)}
+                  title={previewMuted ? "Unmute" : "Mute"}
+                >
+                  {previewMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </Button>
+              </div>
             )}
           </motion.div>
         )}
@@ -594,8 +645,9 @@ const Studio = () => {
           <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
             <li>Choose <strong>Screen + Camera</strong> for a webcam overlay in the bottom-right.</li>
             <li>System audio is captured when you share a browser tab with "Share tab audio" checked.</li>
-            <li>Recordings save as WebM — use the editor (coming soon) to trim and export as MP4.</li>
-            <li>Social media upload will be available once you connect your accounts.</li>
+            <li>After recording, click <strong>Edit Video</strong> to trim, add text overlays, apply filters, and animate with keyframes.</li>
+            <li>Download the <strong>original</strong> or <strong>edited</strong> version — or save to cloud for later.</li>
+            <li>Use <kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> to play/pause and arrow keys to step frames in the editor.</li>
           </ul>
         </motion.div>
       </main>
