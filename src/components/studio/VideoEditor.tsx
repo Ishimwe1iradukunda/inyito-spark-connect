@@ -2,7 +2,9 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap, Undo2, Redo2 } from "lucide-react";
+import { useUndoRedo } from "@/hooks/useUndoRedo";
 import TrimTimeline from "./TrimTimeline";
 import TextOverlayEditor, { type TextOverlay } from "./TextOverlayEditor";
 import FiltersPanel, {
@@ -30,6 +32,12 @@ interface VideoEditorProps {
   onExport: (blob: Blob) => void;
 }
 
+interface EditorState {
+  overlays: TextOverlay[];
+  filters: VideoFilters;
+  keyframeTracks: KeyframeTrack[];
+}
+
 const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,15 +46,55 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(0);
-  const [overlays, setOverlays] = useState<TextOverlay[]>([]);
-  const [filters, setFilters] = useState<VideoFilters>(DEFAULT_FILTERS);
   const [exporting, setExporting] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [splitView, setSplitView] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [keyframeTracks, setKeyframeTracks] = useState<KeyframeTrack[]>(
-    createFilterTracks()
+
+  // Undo/redo state for overlays, filters, and keyframes
+  const {
+    state: editorState,
+    set: setEditorState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useUndoRedo<EditorState>({
+    overlays: [],
+    filters: DEFAULT_FILTERS,
+    keyframeTracks: createFilterTracks(),
+  });
+
+  const { overlays, filters, keyframeTracks } = editorState;
+
+  // Convenience setters that push to undo history
+  const setOverlays = useCallback(
+    (updater: TextOverlay[] | ((prev: TextOverlay[]) => TextOverlay[])) => {
+      setEditorState((prev) => ({
+        ...prev,
+        overlays: typeof updater === "function" ? updater(prev.overlays) : updater,
+      }));
+    },
+    [setEditorState]
+  );
+
+  const setFilters = useCallback(
+    (newFilters: VideoFilters) => {
+      setEditorState((prev) => ({ ...prev, filters: newFilters }));
+    },
+    [setEditorState]
+  );
+
+  const setKeyframeTracks = useCallback(
+    (updater: KeyframeTrack[] | ((prev: KeyframeTrack[]) => KeyframeTrack[])) => {
+      setEditorState((prev) => ({
+        ...prev,
+        keyframeTracks:
+          typeof updater === "function" ? updater(prev.keyframeTracks) : updater,
+      }));
+    },
+    [setEditorState]
   );
 
   /* Load video metadata */
@@ -97,6 +145,22 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       )
         return;
 
+      // Undo: Ctrl+Z / Cmd+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y
+      if (
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "z") ||
+        ((e.ctrlKey || e.metaKey) && e.key === "y")
+      ) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -117,7 +181,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [currentTime, videoDuration]);
+  }, [currentTime, videoDuration, undo, redo]);
 
   const handlePlayPause = useCallback(() => {
     const vid = videoRef.current;
@@ -479,6 +543,38 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
 
       {/* Editor panels */}
       <div className="max-w-4xl mx-auto">
+        {/* Undo/Redo toolbar */}
+        <div className="flex items-center justify-end gap-1 mb-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={undo}
+                disabled={!canUndo}
+              >
+                <Undo2 size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">Undo (Ctrl+Z)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={redo}
+                disabled={!canRedo}
+              >
+                <Redo2 size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">Redo (Ctrl+Shift+Z)</TooltipContent>
+          </Tooltip>
+        </div>
+
         <Tabs defaultValue="trim" className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="trim" className="gap-1.5 text-xs">
@@ -543,9 +639,11 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
         </Tabs>
 
         {/* Keyboard shortcuts hint */}
-        <div className="flex items-center justify-center gap-4 mt-3 text-[9px] text-muted-foreground">
+        <div className="flex items-center justify-center gap-4 mt-3 text-[9px] text-muted-foreground flex-wrap">
           <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> Play/Pause</span>
           <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">←</kbd><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono ml-0.5">→</kbd> Frame step</span>
+          <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Ctrl+Z</kbd> Undo</span>
+          <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Ctrl+⇧+Z</kbd> Redo</span>
           <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Esc</kbd> Deselect</span>
         </div>
 
