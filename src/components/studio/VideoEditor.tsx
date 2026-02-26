@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Loader2, Scissors, Type, Palette, Wand2 } from "lucide-react";
+import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap } from "lucide-react";
 import TrimTimeline from "./TrimTimeline";
 import TextOverlayEditor, { type TextOverlay } from "./TextOverlayEditor";
 import FiltersPanel, {
@@ -13,6 +13,16 @@ import FiltersPanel, {
 import VideoPlaybackControls from "./VideoPlaybackControls";
 import CanvasOverlay from "./CanvasOverlay";
 import ActiveEffectsIndicator from "./ActiveEffectsIndicator";
+import KeyframesTrackPanel from "./KeyframesTrackPanel";
+import {
+  type KeyframeTrack,
+  type EasingType,
+  createFilterTracks,
+  createOverlayTracks,
+  addKeyframe,
+  removeKeyframe,
+  interpolateAt,
+} from "./KeyframeEngine";
 
 interface VideoEditorProps {
   videoUrl: string;
@@ -34,6 +44,10 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [splitView, setSplitView] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [keyframeTracks, setKeyframeTracks] = useState<KeyframeTrack[]>(
+    createFilterTracks()
+  );
 
   /* Load video metadata */
   useEffect(() => {
@@ -47,7 +61,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     return () => vid.removeEventListener("loadedmetadata", onLoaded);
   }, [videoUrl]);
 
-  /* Sync current time with high frequency */
+  /* Sync current time */
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -69,6 +83,42 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     return () => vid.removeEventListener("timeupdate", check);
   }, [isPlaying, trimStart, trimEnd]);
 
+  /* Sync playback speed */
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = playbackSpeed;
+  }, [playbackSpeed]);
+
+  /* Keyboard shortcuts */
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+
+      switch (e.key) {
+        case " ":
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          handleSeek(Math.max(0, currentTime - 1 / 30));
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          handleSeek(Math.min(videoDuration, currentTime + 1 / 30));
+          break;
+        case "Escape":
+          setSelectedOverlayId(null);
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [currentTime, videoDuration]);
+
   const handlePlayPause = useCallback(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -76,7 +126,6 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       vid.pause();
       setIsPlaying(false);
     } else {
-      // Jump to trim start if outside trim range
       if (vid.currentTime < trimStart || vid.currentTime >= trimEnd) {
         vid.currentTime = trimStart;
       }
@@ -106,7 +155,110 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     []
   );
 
-  /* ---- Draw overlays on canvas preview ---- */
+  /* ---- Sync overlay tracks when overlays change ---- */
+  useEffect(() => {
+    setKeyframeTracks((prev) => {
+      const filterTracks = prev.filter((t) => !t.targetId);
+      const existingOverlayIds = new Set(
+        prev.filter((t) => t.targetId).map((t) => t.targetId!)
+      );
+      const currentOverlayIds = new Set(overlays.map((o) => o.id));
+
+      // Keep existing overlay tracks that still exist
+      const kept = prev.filter(
+        (t) => !t.targetId || currentOverlayIds.has(t.targetId!)
+      );
+
+      // Add tracks for new overlays
+      const newTracks: KeyframeTrack[] = [];
+      overlays.forEach((o) => {
+        if (!existingOverlayIds.has(o.id)) {
+          newTracks.push(
+            ...createOverlayTracks(o.id, o.text.slice(0, 10) || "Text")
+          );
+        }
+      });
+
+      return [...kept, ...newTracks];
+    });
+  }, [overlays]);
+
+  /* ---- Apply keyframe values to filters at current time ---- */
+  const getKeyframedFilters = useCallback((): VideoFilters => {
+    const result = { ...filters };
+    const filterTracks = keyframeTracks.filter((t) => !t.targetId);
+
+    for (const track of filterTracks) {
+      if (track.keyframes.length === 0) continue;
+      const val = interpolateAt(track, currentTime);
+      if (val !== null && track.property in result) {
+        (result as any)[track.property] = val;
+      }
+    }
+    return result;
+  }, [filters, keyframeTracks, currentTime]);
+
+  /* ---- Get keyframed overlay properties ---- */
+  const getKeyframedOverlays = useCallback((): (TextOverlay & { opacity?: number })[] => {
+    return overlays.map((o) => {
+      const overlayTracks = keyframeTracks.filter(
+        (t) => t.targetId === o.id && t.keyframes.length > 0
+      );
+      if (overlayTracks.length === 0) return { ...o, opacity: 100 };
+
+      const result: any = { ...o, opacity: 100 };
+      for (const track of overlayTracks) {
+        const val = interpolateAt(track, currentTime);
+        if (val === null) continue;
+        if (track.property === "overlayOpacity") result.opacity = val;
+        else if (track.property in result) result[track.property] = val;
+      }
+      return result;
+    });
+  }, [overlays, keyframeTracks, currentTime]);
+
+  /* ---- Keyframe handlers ---- */
+  const handleAddKeyframe = useCallback(
+    (trackId: string, time: number, value: number) => {
+      setKeyframeTracks((prev) =>
+        prev.map((t) =>
+          t.id === trackId ? addKeyframe(t, time, value) : t
+        )
+      );
+    },
+    []
+  );
+
+  const handleRemoveKeyframe = useCallback(
+    (trackId: string, keyframeId: string) => {
+      setKeyframeTracks((prev) =>
+        prev.map((t) =>
+          t.id === trackId ? removeKeyframe(t, keyframeId) : t
+        )
+      );
+    },
+    []
+  );
+
+  const handleUpdateKeyframeEasing = useCallback(
+    (trackId: string, keyframeId: string, easing: EasingType) => {
+      setKeyframeTracks((prev) =>
+        prev.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                keyframes: t.keyframes.map((k) =>
+                  k.id === keyframeId ? { ...k, easing } : k
+                ),
+              }
+            : t
+        )
+      );
+    },
+    []
+  );
+
+  /* ---- Draw frame with keyframed values ---- */
   const drawFrame = useCallback(() => {
     const vid = videoRef.current;
     const canvas = canvasRef.current;
@@ -116,12 +268,25 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     canvas.width = vid.videoWidth || 1920;
     canvas.height = vid.videoHeight || 1080;
 
+    const activeFilters = getKeyframedFilters();
+    const activeOverlays = getKeyframedOverlays();
+
+    // Get global opacity from keyframes
+    const opacityTrack = keyframeTracks.find(
+      (t) => t.property === "opacity" && !t.targetId
+    );
+    const globalOpacity =
+      opacityTrack && opacityTrack.keyframes.length > 0
+        ? (interpolateAt(opacityTrack, currentTime) ?? 100) / 100
+        : 1;
+
     if (splitView) {
-      // Left half: original (no filters)
+      // Left half: original
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, canvas.width / 2, canvas.height);
       ctx.clip();
+      ctx.globalAlpha = globalOpacity;
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
@@ -130,12 +295,14 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.beginPath();
       ctx.rect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
       ctx.clip();
-      ctx.filter = filtersToCSS(filters);
+      ctx.globalAlpha = globalOpacity;
+      ctx.filter = filtersToCSS(activeFilters);
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
       ctx.restore();
 
-      // Divider line
+      // Divider
+      ctx.globalAlpha = 1;
       ctx.strokeStyle = "hsl(213, 94%, 54%)";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -143,23 +310,26 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.lineTo(canvas.width / 2, canvas.height);
       ctx.stroke();
 
-      // Labels
       ctx.font = "bold 14px Inter, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.textAlign = "center";
       ctx.fillText("ORIGINAL", canvas.width / 4, 24);
       ctx.fillText("EDITED", (canvas.width * 3) / 4, 24);
     } else {
-      // Normal: apply filters to full frame
-      ctx.filter = filtersToCSS(filters);
+      ctx.globalAlpha = globalOpacity;
+      ctx.filter = filtersToCSS(activeFilters);
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
+      ctx.globalAlpha = 1;
     }
 
-    // Draw text overlays
-    overlays.forEach((o) => {
+    // Draw text overlays with keyframed properties
+    activeOverlays.forEach((o: any) => {
       const x = (o.x / 100) * canvas.width;
       const y = (o.y / 100) * canvas.height;
+      const opacity = (o.opacity ?? 100) / 100;
+
+      ctx.globalAlpha = opacity;
       ctx.font = `${o.bold ? "bold " : ""}${o.fontSize}px ${o.fontFamily}`;
       ctx.fillStyle = o.color;
       ctx.textAlign = "center";
@@ -171,8 +341,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.shadowOffsetY = 2;
       ctx.fillText(o.text, x, y);
       ctx.shadowColor = "transparent";
+      ctx.globalAlpha = 1;
     });
-  }, [filters, overlays, splitView]);
+  }, [getKeyframedFilters, getKeyframedOverlays, splitView, keyframeTracks, currentTime]);
 
   /* Animate preview canvas */
   useEffect(() => {
@@ -185,7 +356,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     return () => cancelAnimationFrame(raf);
   }, [drawFrame]);
 
-  /* ---- Export edited video ---- */
+  /* ---- Export ---- */
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -195,7 +366,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       canvas.height = vid.videoHeight || 1080;
 
       vid.currentTime = trimStart;
-      await new Promise((r) => vid.addEventListener("seeked", r, { once: true }));
+      await new Promise((r) =>
+        vid.addEventListener("seeked", r, { once: true })
+      );
 
       const stream = canvas.captureStream(30);
       const audioCtx = new AudioContext();
@@ -214,7 +387,8 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       };
 
       const done = new Promise<Blob>((resolve) => {
-        recorder.onstop = () => resolve(new Blob(chunks, { type: "video/webm" }));
+        recorder.onstop = () =>
+          resolve(new Blob(chunks, { type: "video/webm" }));
       });
 
       vid.play();
@@ -241,6 +415,11 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     }
   }, [trimStart, trimEnd, onExport]);
 
+  const totalKeyframes = keyframeTracks.reduce(
+    (sum, t) => sum + t.keyframes.length,
+    0
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -257,10 +436,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
           muted
           loop
         />
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full object-contain"
-        />
+        <canvas ref={canvasRef} className="w-full h-full object-contain" />
         <CanvasOverlay
           overlays={overlays}
           selectedOverlayId={selectedOverlayId}
@@ -282,16 +458,18 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
           trimStart={trimStart}
           trimEnd={trimEnd}
           splitView={splitView}
+          playbackSpeed={playbackSpeed}
           onPlayPause={handlePlayPause}
           onSeek={handleSeek}
           onToggleSplitView={() => setSplitView((v) => !v)}
+          onSpeedChange={setPlaybackSpeed}
         />
       </div>
 
       {/* Active effects indicator */}
       <div className="max-w-4xl mx-auto">
         <ActiveEffectsIndicator
-          filters={filters}
+          filters={getKeyframedFilters()}
           overlayCount={overlays.length}
           trimStart={trimStart}
           trimEnd={trimEnd}
@@ -302,10 +480,10 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       {/* Editor panels */}
       <div className="max-w-4xl mx-auto">
         <Tabs defaultValue="trim" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="trim" className="gap-1.5 text-xs">
               <Scissors size={14} />
-              Trim & Cut
+              Trim
             </TabsTrigger>
             <TabsTrigger value="text" className="gap-1.5 text-xs">
               <Type size={14} />
@@ -314,6 +492,15 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
             <TabsTrigger value="filters" className="gap-1.5 text-xs">
               <Palette size={14} />
               Filters
+            </TabsTrigger>
+            <TabsTrigger value="keyframes" className="gap-1.5 text-xs">
+              <Zap size={14} />
+              Keyframes
+              {totalKeyframes > 0 && (
+                <span className="ml-1 text-[9px] bg-primary/20 text-primary px-1 rounded-full">
+                  {totalKeyframes}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -341,7 +528,26 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
           <TabsContent value="filters" className="card-glass rounded-xl p-4">
             <FiltersPanel filters={filters} onChange={setFilters} />
           </TabsContent>
+
+          <TabsContent value="keyframes" className="card-glass rounded-xl p-4">
+            <KeyframesTrackPanel
+              tracks={keyframeTracks}
+              currentTime={currentTime}
+              duration={videoDuration}
+              onAddKeyframe={handleAddKeyframe}
+              onRemoveKeyframe={handleRemoveKeyframe}
+              onUpdateKeyframeEasing={handleUpdateKeyframeEasing}
+              onSeek={handleSeek}
+            />
+          </TabsContent>
         </Tabs>
+
+        {/* Keyboard shortcuts hint */}
+        <div className="flex items-center justify-center gap-4 mt-3 text-[9px] text-muted-foreground">
+          <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> Play/Pause</span>
+          <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">←</kbd><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono ml-0.5">→</kbd> Frame step</span>
+          <span><kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Esc</kbd> Deselect</span>
+        </div>
 
         {/* Export button */}
         <div className="flex justify-center mt-6">
