@@ -4,6 +4,16 @@ import NavBar from "@/components/NavBar";
 import SiteFooter from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -54,6 +64,7 @@ const MyRecordings = () => {
   const [search, setSearch] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
   const [shareTitle, setShareTitle] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Recording | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -71,9 +82,10 @@ const MyRecordings = () => {
     setLoading(false);
   };
 
-  const handleDelete = async (id: string) => {
-    await supabase.from("recordings").delete().eq("id", id);
-    setRecordings((prev) => prev.filter((r) => r.id !== id));
+  const handleDelete = async (rec: Recording) => {
+    await supabase.from("recordings").delete().eq("id", rec.id);
+    setRecordings((prev) => prev.filter((r) => r.id !== rec.id));
+    setDeleteTarget(null);
   };
 
   const handleDownload = async (rec: Recording) => {
@@ -160,7 +172,7 @@ const MyRecordings = () => {
                       <Button variant="ghost" size="icon" onClick={() => handleDownload(rec)} title="Download">
                         <Download size={16} />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(rec.id)} title="Delete">
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(rec)} title="Delete">
                         <Trash2 size={16} className="text-destructive" />
                       </Button>
                     </div>
@@ -172,6 +184,28 @@ const MyRecordings = () => {
         )}
       </main>
       <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={shareTitle} />
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete recording?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "<strong>{deleteTarget?.title}</strong>". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <SiteFooter />
     </div>
   );
