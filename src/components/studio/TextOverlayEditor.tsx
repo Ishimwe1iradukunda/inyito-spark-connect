@@ -26,6 +26,8 @@ export interface TextOverlay {
 interface TextOverlayEditorProps {
   overlays: TextOverlay[];
   onChange: (overlays: TextOverlay[]) => void;
+  selectedId?: string | null;
+  onSelect?: (id: string | null) => void;
 }
 
 const COLORS = [
@@ -47,7 +49,7 @@ const FONTS = [
   "Impact",
 ];
 
-const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
+const TextOverlayEditor = ({ overlays, onChange, selectedId, onSelect }: TextOverlayEditorProps) => {
   const addOverlay = () => {
     const newOverlay: TextOverlay = {
       id: crypto.randomUUID(),
@@ -60,6 +62,7 @@ const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
       bold: true,
     };
     onChange([...overlays, newOverlay]);
+    onSelect?.(newOverlay.id);
   };
 
   const updateOverlay = (id: string, patch: Partial<TextOverlay>) => {
@@ -68,6 +71,7 @@ const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
 
   const removeOverlay = (id: string) => {
     onChange(overlays.filter((o) => o.id !== id));
+    if (selectedId === id) onSelect?.(null);
   };
 
   return (
@@ -92,7 +96,12 @@ const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
       {overlays.map((overlay) => (
         <div
           key={overlay.id}
-          className="card-glass rounded-lg p-3 space-y-2.5"
+          className={`card-glass rounded-lg p-3 space-y-2.5 cursor-pointer transition-all ${
+            selectedId === overlay.id
+              ? "ring-2 ring-primary"
+              : "hover:ring-1 hover:ring-muted-foreground/30"
+          }`}
+          onClick={() => onSelect?.(overlay.id)}
         >
           <div className="flex items-center gap-2">
             <Input
@@ -105,7 +114,10 @@ const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={() => removeOverlay(overlay.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeOverlay(overlay.id);
+              }}
             >
               <Trash2 size={14} />
             </Button>
@@ -190,6 +202,12 @@ const TextOverlayEditor = ({ overlays, onChange }: TextOverlayEditorProps) => {
               />
             </div>
           </div>
+
+          {selectedId === overlay.id && (
+            <p className="text-[10px] text-muted-foreground italic">
+              💡 Drag this overlay directly on the video canvas to reposition
+            </p>
+          )}
         </div>
       ))}
     </div>
