@@ -226,14 +226,16 @@ const Studio = () => {
   }, [sourceType, micEnabled, acquireScreen, acquireCamera, buildCompositeStream, startRecording]);
 
   /* ---- Download ---- */
-  const handleDownload = useCallback(() => {
-    const url = exportedBlob ? URL.createObjectURL(exportedBlob) : recordedUrl;
-    if (!url) return;
+  const handleDownload = useCallback((type: "original" | "edited" = "original") => {
+    const blob = type === "edited" && exportedBlob ? exportedBlob : recordedBlob;
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `recording-${Date.now()}.webm`;
+    a.download = `recording-${type}-${Date.now()}.webm`;
     a.click();
-  }, [recordedUrl, exportedBlob]);
+    URL.revokeObjectURL(url);
+  }, [recordedBlob, exportedBlob]);
 
   /* ---- Save to Cloud ---- */
   const handleSaveToCloud = useCallback(async () => {
@@ -517,10 +519,23 @@ const Studio = () => {
                     <Wand2 size={18} />
                     Edit Video
                   </Button>
-                  <Button size="lg" className="gap-2 glow-blue font-bold" onClick={handleDownload}>
-                    <Download size={18} />
-                    Download
-                  </Button>
+                  {exportedBlob ? (
+                    <>
+                      <Button size="lg" className="gap-2 glow-blue font-bold" onClick={() => handleDownload("edited")}>
+                        <Download size={18} />
+                        Download Edited
+                      </Button>
+                      <Button size="lg" variant="secondary" className="gap-2" onClick={() => handleDownload("original")}>
+                        <Download size={18} />
+                        Download Original
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="lg" className="gap-2 glow-blue font-bold" onClick={() => handleDownload("original")}>
+                      <Download size={18} />
+                      Download
+                    </Button>
+                  )}
                   <Button size="lg" variant="secondary" className="gap-2" onClick={() => setShareOpen(true)}>
                     <Share2 size={18} />
                     Share
