@@ -10,6 +10,9 @@ import FiltersPanel, {
   DEFAULT_FILTERS,
   filtersToCSS,
 } from "./FiltersPanel";
+import VideoPlaybackControls from "./VideoPlaybackControls";
+import CanvasOverlay from "./CanvasOverlay";
+import ActiveEffectsIndicator from "./ActiveEffectsIndicator";
 
 interface VideoEditorProps {
   videoUrl: string;
@@ -28,6 +31,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
   const [overlays, setOverlays] = useState<TextOverlay[]>([]);
   const [filters, setFilters] = useState<VideoFilters>(DEFAULT_FILTERS);
   const [exporting, setExporting] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [splitView, setSplitView] = useState(false);
 
   /* Load video metadata */
   useEffect(() => {
@@ -41,7 +47,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     return () => vid.removeEventListener("loadedmetadata", onLoaded);
   }, [videoUrl]);
 
-  /* Sync current time */
+  /* Sync current time with high frequency */
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -50,17 +56,55 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     return () => vid.removeEventListener("timeupdate", onTime);
   }, []);
 
-  const handleSeek = (time: number) => {
+  /* Constrain playback within trim bounds */
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid || !isPlaying) return;
+    const check = () => {
+      if (vid.currentTime >= trimEnd) {
+        vid.currentTime = trimStart;
+      }
+    };
+    vid.addEventListener("timeupdate", check);
+    return () => vid.removeEventListener("timeupdate", check);
+  }, [isPlaying, trimStart, trimEnd]);
+
+  const handlePlayPause = useCallback(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (isPlaying) {
+      vid.pause();
+      setIsPlaying(false);
+    } else {
+      // Jump to trim start if outside trim range
+      if (vid.currentTime < trimStart || vid.currentTime >= trimEnd) {
+        vid.currentTime = trimStart;
+      }
+      vid.play();
+      setIsPlaying(true);
+    }
+  }, [isPlaying, trimStart, trimEnd]);
+
+  const handleSeek = useCallback((time: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = time;
       setCurrentTime(time);
     }
-  };
+  }, []);
 
   const handleTrimChange = (start: number, end: number) => {
     setTrimStart(start);
     setTrimEnd(end);
   };
+
+  const handleMoveOverlay = useCallback(
+    (id: string, x: number, y: number) => {
+      setOverlays((prev) =>
+        prev.map((o) => (o.id === id ? { ...o, x, y } : o))
+      );
+    },
+    []
+  );
 
   /* ---- Draw overlays on canvas preview ---- */
   const drawFrame = useCallback(() => {
@@ -72,10 +116,45 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     canvas.width = vid.videoWidth || 1920;
     canvas.height = vid.videoHeight || 1080;
 
-    // Apply CSS filters via canvas filter property
-    ctx.filter = filtersToCSS(filters);
-    ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-    ctx.filter = "none";
+    if (splitView) {
+      // Left half: original (no filters)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width / 2, canvas.height);
+      ctx.clip();
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+
+      // Right half: filtered
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
+      ctx.clip();
+      ctx.filter = filtersToCSS(filters);
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      ctx.filter = "none";
+      ctx.restore();
+
+      // Divider line
+      ctx.strokeStyle = "hsl(213, 94%, 54%)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2, 0);
+      ctx.lineTo(canvas.width / 2, canvas.height);
+      ctx.stroke();
+
+      // Labels
+      ctx.font = "bold 14px Inter, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.textAlign = "center";
+      ctx.fillText("ORIGINAL", canvas.width / 4, 24);
+      ctx.fillText("EDITED", (canvas.width * 3) / 4, 24);
+    } else {
+      // Normal: apply filters to full frame
+      ctx.filter = filtersToCSS(filters);
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      ctx.filter = "none";
+    }
 
     // Draw text overlays
     overlays.forEach((o) => {
@@ -86,7 +165,6 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
-      // Text shadow for readability
       ctx.shadowColor = "rgba(0,0,0,0.7)";
       ctx.shadowBlur = 6;
       ctx.shadowOffsetX = 2;
@@ -94,7 +172,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.fillText(o.text, x, y);
       ctx.shadowColor = "transparent";
     });
-  }, [filters, overlays]);
+  }, [filters, overlays, splitView]);
 
   /* Animate preview canvas */
   useEffect(() => {
@@ -120,7 +198,6 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       await new Promise((r) => vid.addEventListener("seeked", r, { once: true }));
 
       const stream = canvas.captureStream(30);
-      // Capture audio from video element
       const audioCtx = new AudioContext();
       const source = audioCtx.createMediaElementSource(vid);
       const dest = audioCtx.createMediaStreamDestination();
@@ -143,7 +220,6 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       vid.play();
       recorder.start();
 
-      // Stop at trimEnd
       const checkEnd = () => {
         if (vid.currentTime >= trimEnd) {
           vid.pause();
@@ -169,9 +245,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-4"
     >
-      {/* Canvas preview */}
+      {/* Canvas preview with overlay */}
       <div className="relative aspect-video w-full max-w-4xl mx-auto rounded-2xl overflow-hidden border border-border bg-card">
         <video
           ref={videoRef}
@@ -184,6 +260,42 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
         <canvas
           ref={canvasRef}
           className="w-full h-full object-contain"
+        />
+        <CanvasOverlay
+          overlays={overlays}
+          selectedOverlayId={selectedOverlayId}
+          currentTime={currentTime}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          onSelectOverlay={setSelectedOverlayId}
+          onMoveOverlay={handleMoveOverlay}
+        />
+      </div>
+
+      {/* Playback controls */}
+      <div className="max-w-4xl mx-auto">
+        <VideoPlaybackControls
+          videoRef={videoRef}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={videoDuration}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          splitView={splitView}
+          onPlayPause={handlePlayPause}
+          onSeek={handleSeek}
+          onToggleSplitView={() => setSplitView((v) => !v)}
+        />
+      </div>
+
+      {/* Active effects indicator */}
+      <div className="max-w-4xl mx-auto">
+        <ActiveEffectsIndicator
+          filters={filters}
+          overlayCount={overlays.length}
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          totalDuration={videoDuration}
         />
       </div>
 
@@ -211,13 +323,19 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
               trimStart={trimStart}
               trimEnd={trimEnd}
               currentTime={currentTime}
+              isPlaying={isPlaying}
               onTrimChange={handleTrimChange}
               onSeek={handleSeek}
             />
           </TabsContent>
 
           <TabsContent value="text" className="card-glass rounded-xl p-4">
-            <TextOverlayEditor overlays={overlays} onChange={setOverlays} />
+            <TextOverlayEditor
+              overlays={overlays}
+              onChange={setOverlays}
+              selectedId={selectedOverlayId}
+              onSelect={setSelectedOverlayId}
+            />
           </TabsContent>
 
           <TabsContent value="filters" className="card-glass rounded-xl p-4">
