@@ -86,6 +86,48 @@ export type Database = {
         }
         Relationships: []
       }
+      templates: {
+        Row: {
+          category: string
+          config: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          thumbnail_url: string | null
+          title: string
+          type: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          thumbnail_url?: string | null
+          title: string
+          type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          thumbnail_url?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
