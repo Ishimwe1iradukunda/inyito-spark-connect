@@ -90,9 +90,26 @@ function applyTransition(effect: TransitionEffect, type: TransitionType, t: numb
   }
 }
 
+const PRESETS: { label: string; config: TransitionConfig }[] = [
+  { label: "None", config: DEFAULT_TRANSITIONS },
+  { label: "Cinematic", config: { inType: "fade", inDuration: 1, outType: "fade", outDuration: 1 } },
+  { label: "Dramatic", config: { inType: "dissolve", inDuration: 0.8, outType: "wipe-left", outDuration: 0.8 } },
+  { label: "Smooth", config: { inType: "dissolve", inDuration: 0.6, outType: "dissolve", outDuration: 0.6 } },
+  { label: "Quick Cut", config: { inType: "wipe-left", inDuration: 0.3, outType: "wipe-right", outDuration: 0.3 } },
+  { label: "Reveal", config: { inType: "wipe-up", inDuration: 0.7, outType: "fade", outDuration: 0.5 } },
+];
+
 const TransitionsPanel = ({ transitions, onChange }: TransitionsPanelProps) => {
   const update = (key: keyof TransitionConfig, value: any) =>
     onChange({ ...transitions, [key]: value });
+
+  const activePreset = PRESETS.find(
+    (p) =>
+      p.config.inType === transitions.inType &&
+      p.config.outType === transitions.outType &&
+      p.config.inDuration === transitions.inDuration &&
+      p.config.outDuration === transitions.outDuration
+  );
 
   return (
     <div className="space-y-4">
@@ -110,6 +127,24 @@ const TransitionsPanel = ({ transitions, onChange }: TransitionsPanelProps) => {
           <RotateCcw size={12} />
           Reset
         </Button>
+      </div>
+
+      {/* Presets */}
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-medium text-foreground">Presets</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map((p) => (
+            <Button
+              key={p.label}
+              variant={activePreset?.label === p.label ? "default" : "secondary"}
+              size="sm"
+              className="text-xs h-7 px-2.5"
+              onClick={() => onChange(p.config)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* In transition */}
