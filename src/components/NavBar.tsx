@@ -21,6 +21,7 @@ const NavBar = () => {
 
   const routeLinks: { label: string; path: string }[] = [
     { label: "Studio", path: "/studio" },
+    { label: "Templates", path: "/templates" },
     ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
   ];
 

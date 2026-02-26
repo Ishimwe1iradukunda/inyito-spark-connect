@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap, Undo2, Redo2, Sparkles } from "lucide-react";
+import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap, Undo2, Redo2, Sparkles, LayoutGrid } from "lucide-react";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import TrimTimeline from "./TrimTimeline";
 import TextOverlayEditor, { type TextOverlay } from "./TextOverlayEditor";
@@ -21,6 +21,7 @@ import TransitionsPanel, {
   DEFAULT_TRANSITIONS,
   computeTransitionEffect,
 } from "./TransitionsPanel";
+import TemplatesQuickPanel from "./TemplatesQuickPanel";
 import {
   type KeyframeTrack,
   type EasingType,
@@ -633,31 +634,35 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
         </div>
 
         <Tabs defaultValue="trim" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-4">
-            <TabsTrigger value="trim" className="gap-1.5 text-xs">
-              <Scissors size={14} />
+          <TabsList className="grid w-full grid-cols-6 mb-4">
+            <TabsTrigger value="trim" className="gap-1 text-xs">
+              <Scissors size={13} />
               Trim
             </TabsTrigger>
-            <TabsTrigger value="text" className="gap-1.5 text-xs">
-              <Type size={14} />
+            <TabsTrigger value="text" className="gap-1 text-xs">
+              <Type size={13} />
               Text
             </TabsTrigger>
-            <TabsTrigger value="filters" className="gap-1.5 text-xs">
-              <Palette size={14} />
+            <TabsTrigger value="filters" className="gap-1 text-xs">
+              <Palette size={13} />
               Filters
             </TabsTrigger>
-            <TabsTrigger value="transitions" className="gap-1.5 text-xs">
-              <Sparkles size={14} />
-              Transitions
+            <TabsTrigger value="transitions" className="gap-1 text-xs">
+              <Sparkles size={13} />
+              FX
               {(transitions.inType !== "none" || transitions.outType !== "none") && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="ml-0.5 w-1.5 h-1.5 rounded-full bg-primary" />
               )}
             </TabsTrigger>
-            <TabsTrigger value="keyframes" className="gap-1.5 text-xs">
-              <Zap size={14} />
+            <TabsTrigger value="templates" className="gap-1 text-xs">
+              <LayoutGrid size={13} />
+              Presets
+            </TabsTrigger>
+            <TabsTrigger value="keyframes" className="gap-1 text-xs">
+              <Zap size={13} />
               KF
               {totalKeyframes > 0 && (
-                <span className="ml-1 text-[9px] bg-primary/20 text-primary px-1 rounded-full">
+                <span className="ml-0.5 text-[9px] bg-primary/20 text-primary px-1 rounded-full">
                   {totalKeyframes}
                 </span>
               )}
@@ -691,6 +696,14 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
 
           <TabsContent value="transitions" className="card-glass rounded-xl p-4">
             <TransitionsPanel transitions={transitions} onChange={setTransitions} />
+          </TabsContent>
+
+          <TabsContent value="templates" className="card-glass rounded-xl p-4">
+            <TemplatesQuickPanel
+              onApplyFilters={setFilters}
+              onApplyTransitions={setTransitions}
+              onApplyOverlays={setOverlays}
+            />
           </TabsContent>
 
           <TabsContent value="keyframes" className="card-glass rounded-xl p-4">
