@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap, Undo2, Redo2 } from "lucide-react";
+import { Download, Loader2, Scissors, Type, Palette, Wand2, Zap, Undo2, Redo2, Sparkles } from "lucide-react";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
 import TrimTimeline from "./TrimTimeline";
 import TextOverlayEditor, { type TextOverlay } from "./TextOverlayEditor";
@@ -16,6 +16,11 @@ import VideoPlaybackControls from "./VideoPlaybackControls";
 import CanvasOverlay from "./CanvasOverlay";
 import ActiveEffectsIndicator from "./ActiveEffectsIndicator";
 import KeyframesTrackPanel from "./KeyframesTrackPanel";
+import TransitionsPanel, {
+  type TransitionConfig,
+  DEFAULT_TRANSITIONS,
+  computeTransitionEffect,
+} from "./TransitionsPanel";
 import {
   type KeyframeTrack,
   type EasingType,
@@ -36,6 +41,7 @@ interface EditorState {
   overlays: TextOverlay[];
   filters: VideoFilters;
   keyframeTracks: KeyframeTrack[];
+  transitions: TransitionConfig;
 }
 
 const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
@@ -64,9 +70,17 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     overlays: [],
     filters: DEFAULT_FILTERS,
     keyframeTracks: createFilterTracks(),
+    transitions: DEFAULT_TRANSITIONS,
   });
 
-  const { overlays, filters, keyframeTracks } = editorState;
+  const { overlays, filters, keyframeTracks, transitions } = editorState;
+
+  const setTransitions = useCallback(
+    (newTransitions: TransitionConfig) => {
+      setEditorState((prev) => ({ ...prev, transitions: newTransitions }));
+    },
+    [setEditorState]
+  );
 
   // Convenience setters that push to undo history
   const setOverlays = useCallback(
@@ -335,6 +349,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
     const activeFilters = getKeyframedFilters();
     const activeOverlays = getKeyframedOverlays();
 
+    // Compute transition effect at current time
+    const txEffect = computeTransitionEffect(currentTime, trimStart, trimEnd, transitions);
+
     // Get global opacity from keyframes
     const opacityTrack = keyframeTracks.find(
       (t) => t.property === "opacity" && !t.targetId
@@ -344,13 +361,19 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
         ? (interpolateAt(opacityTrack, currentTime) ?? 100) / 100
         : 1;
 
+    // Combined opacity: keyframe * transition
+    const combinedOpacity = globalOpacity * txEffect.opacity;
+
+    // Build filter string including transition blur
+    const extraBlurCSS = txEffect.extraBlur > 0 ? ` blur(${txEffect.extraBlur}px)` : "";
+
     if (splitView) {
       // Left half: original
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, canvas.width / 2, canvas.height);
       ctx.clip();
-      ctx.globalAlpha = globalOpacity;
+      ctx.globalAlpha = combinedOpacity;
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
@@ -359,8 +382,8 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.beginPath();
       ctx.rect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
       ctx.clip();
-      ctx.globalAlpha = globalOpacity;
-      ctx.filter = filtersToCSS(activeFilters);
+      ctx.globalAlpha = combinedOpacity;
+      ctx.filter = filtersToCSS(activeFilters) + extraBlurCSS;
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
       ctx.restore();
@@ -380,11 +403,45 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.fillText("ORIGINAL", canvas.width / 4, 24);
       ctx.fillText("EDITED", (canvas.width * 3) / 4, 24);
     } else {
-      ctx.globalAlpha = globalOpacity;
-      ctx.filter = filtersToCSS(activeFilters);
+      // Apply wipe clipping if needed
+      if (txEffect.clipX < 1 || txEffect.clipY < 1) {
+        ctx.save();
+        ctx.beginPath();
+        // Determine wipe direction
+        const clipW = txEffect.clipX < 1 ? canvas.width * txEffect.clipX : canvas.width;
+        const clipH = txEffect.clipY < 1 ? canvas.height * txEffect.clipY : canvas.height;
+
+        // For wipe-right, clip from right side
+        const inIsWipeRight = transitions.inType === "wipe-right";
+        const outIsWipeRight = transitions.outType === "wipe-right";
+        const isWipeRight = inIsWipeRight || outIsWipeRight;
+
+        if (isWipeRight && txEffect.clipX < 1) {
+          ctx.rect(canvas.width - clipW, 0, clipW, clipH);
+        } else {
+          ctx.rect(0, canvas.height - clipH, clipW, clipH);
+        }
+        ctx.clip();
+      }
+
+      ctx.globalAlpha = combinedOpacity;
+      ctx.filter = filtersToCSS(activeFilters) + extraBlurCSS;
       ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
       ctx.globalAlpha = 1;
+
+      if (txEffect.clipX < 1 || txEffect.clipY < 1) {
+        ctx.restore();
+      }
+
+      // Fill black behind for fade/dissolve
+      if (txEffect.opacity < 1) {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
     }
 
     // Draw text overlays with keyframed properties
@@ -407,7 +464,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
       ctx.shadowColor = "transparent";
       ctx.globalAlpha = 1;
     });
-  }, [getKeyframedFilters, getKeyframedOverlays, splitView, keyframeTracks, currentTime]);
+  }, [getKeyframedFilters, getKeyframedOverlays, splitView, keyframeTracks, currentTime, transitions, trimStart, trimEnd]);
 
   /* Animate preview canvas */
   useEffect(() => {
@@ -576,7 +633,7 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
         </div>
 
         <Tabs defaultValue="trim" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-5 mb-4">
             <TabsTrigger value="trim" className="gap-1.5 text-xs">
               <Scissors size={14} />
               Trim
@@ -589,9 +646,16 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
               <Palette size={14} />
               Filters
             </TabsTrigger>
+            <TabsTrigger value="transitions" className="gap-1.5 text-xs">
+              <Sparkles size={14} />
+              Transitions
+              {(transitions.inType !== "none" || transitions.outType !== "none") && (
+                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-primary" />
+              )}
+            </TabsTrigger>
             <TabsTrigger value="keyframes" className="gap-1.5 text-xs">
               <Zap size={14} />
-              Keyframes
+              KF
               {totalKeyframes > 0 && (
                 <span className="ml-1 text-[9px] bg-primary/20 text-primary px-1 rounded-full">
                   {totalKeyframes}
@@ -623,6 +687,10 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
 
           <TabsContent value="filters" className="card-glass rounded-xl p-4">
             <FiltersPanel filters={filters} onChange={setFilters} />
+          </TabsContent>
+
+          <TabsContent value="transitions" className="card-glass rounded-xl p-4">
+            <TransitionsPanel transitions={transitions} onChange={setTransitions} />
           </TabsContent>
 
           <TabsContent value="keyframes" className="card-glass rounded-xl p-4">
