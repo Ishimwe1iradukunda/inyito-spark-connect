@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Studio from "./pages/Studio";
 import Auth from "./pages/Auth";
 import MyRecordings from "./pages/MyRecordings";
+import Templates from "./pages/Templates";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/studio" element={<Studio />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/my-recordings" element={<MyRecordings />} />
+            <Route path="/templates" element={<Templates />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
