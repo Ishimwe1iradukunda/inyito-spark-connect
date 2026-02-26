@@ -703,6 +703,9 @@ const VideoEditor = ({ videoUrl, videoBlob, onExport }: VideoEditorProps) => {
               onApplyFilters={setFilters}
               onApplyTransitions={setTransitions}
               onApplyOverlays={setOverlays}
+              currentFilters={filters}
+              currentTransitions={transitions}
+              currentOverlays={overlays}
             />
           </TabsContent>
 
