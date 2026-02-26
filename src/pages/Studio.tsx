@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import VideoEditor from "@/components/studio/VideoEditor";
 import ShareModal from "@/components/studio/ShareModal";
+import AudioLevelMeter from "@/components/studio/AudioLevelMeter";
 import {
   Monitor,
   Camera,
@@ -17,6 +18,8 @@ import {
   MicOff,
   Video,
   VideoOff,
+  Volume2,
+  VolumeX,
   Circle,
   Square,
   Pause,
@@ -53,8 +56,10 @@ type SourceType = "screen" | "camera" | "both";
 const Studio = () => {
   /* Source states */
   const [sourceType, setSourceType] = useState<SourceType>("screen");
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [systemAudioEnabled, setSystemAudioEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
@@ -88,7 +93,7 @@ const Studio = () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { width: 1920, height: 1080 },
-        audio: true,
+        audio: systemAudioEnabled,
       });
       setScreenStream(stream);
       if (screenVideoRef.current) {
@@ -99,14 +104,14 @@ const Studio = () => {
       console.error("Screen capture denied");
       return null;
     }
-  }, []);
+  }, [systemAudioEnabled]);
 
   /* ---- Acquire camera ---- */
   const acquireCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
-        audio: audioEnabled,
+        audio: micEnabled,
       });
       setCameraStream(stream);
       if (cameraVideoRef.current) {
@@ -117,7 +122,7 @@ const Studio = () => {
       console.error("Camera access denied");
       return null;
     }
-  }, [audioEnabled]);
+  }, [micEnabled]);
 
   /* ---- Combine streams on canvas ---- */
   const buildCompositeStream = useCallback(
@@ -207,9 +212,10 @@ const Studio = () => {
     if (!stream) return;
 
     /* Add mic audio if enabled and not already present */
-    if (audioEnabled && sourceType !== "camera") {
+    if (micEnabled && sourceType !== "camera") {
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setMicStream(mic);
         mic.getAudioTracks().forEach((t) => stream!.addTrack(t));
       } catch {
         /* mic denied — continue without */
@@ -217,7 +223,7 @@ const Studio = () => {
     }
 
     startRecording(stream);
-  }, [sourceType, audioEnabled, acquireScreen, acquireCamera, buildCompositeStream, startRecording]);
+  }, [sourceType, micEnabled, acquireScreen, acquireCamera, buildCompositeStream, startRecording]);
 
   /* ---- Download ---- */
   const handleDownload = useCallback(() => {
@@ -258,12 +264,23 @@ const Studio = () => {
     }
   }, [recordedBlob, exportedBlob, user, saveTitle, duration, sourceType, navigate]);
 
+  /* ---- Toggle mic mid-recording ---- */
+  const toggleMicMidRecording = useCallback(() => {
+    if (micStream) {
+      micStream.getAudioTracks().forEach((t) => {
+        t.enabled = !t.enabled;
+      });
+    }
+    setMicEnabled((v) => !v);
+  }, [micStream]);
+
   useEffect(() => {
     return () => {
       screenStream?.getTracks().forEach((t) => t.stop());
       cameraStream?.getTracks().forEach((t) => t.stop());
+      micStream?.getTracks().forEach((t) => t.stop());
     };
-  }, [screenStream, cameraStream]);
+  }, [screenStream, cameraStream, micStream]);
 
   /* ---- Recording state helpers ---- */
   const isIdle = state === "idle";
@@ -330,17 +347,51 @@ const Studio = () => {
             </Button>
           ))}
 
+          <div className="h-6 w-px bg-border mx-1" />
+
           <Button
-            variant="ghost"
+            variant={micEnabled ? "default" : "ghost"}
+            size="sm"
+            className="gap-2"
+            onClick={isIdle ? () => setMicEnabled(!micEnabled) : toggleMicMidRecording}
+          >
+            {micEnabled ? <Mic size={16} /> : <MicOff size={16} />}
+            Mic
+          </Button>
+
+          <Button
+            variant={systemAudioEnabled ? "default" : "ghost"}
             size="sm"
             className="gap-2"
             disabled={!isIdle}
-            onClick={() => setAudioEnabled(!audioEnabled)}
+            onClick={() => setSystemAudioEnabled(!systemAudioEnabled)}
           >
-            {audioEnabled ? <Mic size={16} /> : <MicOff size={16} />}
-            {audioEnabled ? "Mic On" : "Mic Off"}
+            {systemAudioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            System
           </Button>
         </motion.div>
+
+        {/* Audio Level Meters — visible during recording */}
+        {(isRecording || isPaused) && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-center gap-6 mb-4"
+          >
+            <AudioLevelMeter
+              stream={micStream}
+              label="Mic"
+              type="mic"
+              enabled={micEnabled}
+            />
+            <AudioLevelMeter
+              stream={screenStream}
+              label="System"
+              type="system"
+              enabled={systemAudioEnabled}
+            />
+          </motion.div>
+        )}
 
         {/* Editor mode */}
         {isStopped && editingMode && recordedUrl && (
