@@ -25,6 +25,25 @@ import { type TextOverlay } from "./TextOverlayEditor";
 import { useState } from "react";
 import { toast } from "sonner";
 
+const TemplateButton = ({ template: t, isActive, onClick }: { template: TemplateRow; isActive: boolean; onClick: () => void }) => (
+  <button
+    className={`text-left p-2 rounded-lg border transition-all text-xs ${
+      isActive ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/40"
+    }`}
+    onClick={onClick}
+  >
+    <div className="flex items-center gap-1.5 mb-0.5">
+      {t.type === "video_template" ? (
+        <Film size={10} className="text-muted-foreground shrink-0" />
+      ) : (
+        <Palette size={10} className="text-muted-foreground shrink-0" />
+      )}
+      <span className="font-medium truncate">{t.title}</span>
+    </div>
+    <Badge variant="outline" className="text-[8px] px-1 py-0 capitalize">{t.category}</Badge>
+  </button>
+);
+
 interface TemplatesQuickPanelProps {
   onApplyFilters: (filters: VideoFilters) => void;
   onApplyTransitions: (transitions: TransitionConfig) => void;
@@ -53,7 +72,10 @@ const TemplatesQuickPanel = ({
   const [saveCategory, setSaveCategory] = useState("general");
   const [saveType, setSaveType] = useState("filter_preset");
 
-  const filtered = filter === "all" ? templates : templates.filter((t) => t.type === filter);
+  const systemTemplates = templates.filter((t) => t.is_system);
+  const myTemplates = templates.filter((t) => !t.is_system && t.user_id === user?.id);
+  const filteredSystem = filter === "all" ? systemTemplates : systemTemplates.filter((t) => t.type === filter);
+  const filteredMy = filter === "all" ? myTemplates : myTemplates.filter((t) => t.type === filter);
 
   const handleSave = async () => {
     if (!saveTitle.trim()) return;
@@ -194,34 +216,29 @@ const TemplatesQuickPanel = ({
         ))}
       </div>
 
-      {/* Template grid */}
+      {/* My Templates */}
+      {user && filteredMy.length > 0 && (
+        <>
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">My Templates</p>
+          <div className="grid grid-cols-2 gap-2">
+            {filteredMy.map((t) => (
+              <TemplateButton key={t.id} template={t} isActive={activeId === t.id} onClick={() => applyTemplate(t)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* System templates */}
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+        {user && filteredMy.length > 0 ? "System Presets" : "Templates"}
+      </p>
       <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-        {filtered.map((t) => (
-          <button
-            key={t.id}
-            className={`text-left p-2 rounded-lg border transition-all text-xs ${
-              activeId === t.id
-                ? "border-primary bg-primary/10"
-                : "border-border bg-secondary/30 hover:border-primary/40"
-            }`}
-            onClick={() => applyTemplate(t)}
-          >
-            <div className="flex items-center gap-1.5 mb-0.5">
-              {t.type === "video_template" ? (
-                <Film size={10} className="text-muted-foreground shrink-0" />
-              ) : (
-                <Palette size={10} className="text-muted-foreground shrink-0" />
-              )}
-              <span className="font-medium truncate">{t.title}</span>
-            </div>
-            <Badge variant="outline" className="text-[8px] px-1 py-0 capitalize">
-              {t.category}
-            </Badge>
-          </button>
+        {filteredSystem.map((t) => (
+          <TemplateButton key={t.id} template={t} isActive={activeId === t.id} onClick={() => applyTemplate(t)} />
         ))}
       </div>
 
-      {filtered.length === 0 && (
+      {filteredSystem.length === 0 && filteredMy.length === 0 && (
         <p className="text-[10px] text-muted-foreground text-center py-4">No templates found</p>
       )}
     </div>
