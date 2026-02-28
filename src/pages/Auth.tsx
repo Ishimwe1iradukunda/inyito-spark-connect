@@ -28,7 +28,7 @@ const Auth = () => {
     if (isSignUp) {
       const { error } = await signUp(email, password, displayName);
       if (error) setError(error.message);
-      else setSuccess("Check your email to confirm your account!");
+      else navigate("/studio");
     } else {
       const { error } = await signIn(email, password);
       if (error) setError(error.message);
