@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen } from "lucide-react";
+import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen, UserCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -97,6 +97,10 @@ const NavBar = () => {
           <div className="hidden md:flex items-center gap-2">
             {user ? (
               <>
+                <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/profile")}>
+                  <UserCircle size={14} />
+                  Profile
+                </Button>
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/my-recordings")}>
                   <FolderOpen size={14} />
                   Library
