@@ -11,6 +11,10 @@ import { useNavigate } from "react-router-dom";
 import VideoEditor from "@/components/studio/VideoEditor";
 import ShareModal from "@/components/studio/ShareModal";
 import AudioLevelMeter from "@/components/studio/AudioLevelMeter";
+import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
+import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarkerButton";
+import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
+import MultiRangeTrimmer from "@/components/studio/MultiRangeTrimmer";
 import {
   Monitor,
   Camera,
@@ -34,6 +38,7 @@ import {
   Loader2,
   Wand2,
   Share2,
+  Scissors,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -68,6 +73,9 @@ const Studio = () => {
   const [shareOpen, setShareOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [previewMuted, setPreviewMuted] = useState(false);
+  const [skipRegions, setSkipRegions] = useState<SkipRegion[]>([]);
+  const [isMarkingSkip, setIsMarkingSkip] = useState(false);
+  const [showTrimmer, setShowTrimmer] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -327,8 +335,34 @@ const Studio = () => {
   const handleReset = () => {
     setEditingMode(false);
     setExportedBlob(null);
+    setSkipRegions([]);
+    setIsMarkingSkip(false);
+    setShowTrimmer(false);
     resetRecording();
   };
+
+  const handleSkipStart = useCallback(() => {
+    setSkipRegions((prev) => [...prev, { startMs: duration, endMs: null }]);
+    setIsMarkingSkip(true);
+  }, [duration]);
+
+  const handleSkipEnd = useCallback(() => {
+    setSkipRegions((prev) =>
+      prev.map((r) => (r.endMs === null ? { ...r, endMs: duration } : r))
+    );
+    setIsMarkingSkip(false);
+  }, [duration]);
+
+  const handleTrimConfirm = useCallback(
+    async (keepRegions: { startMs: number; endMs: number }[]) => {
+      // For now, store keep regions and close trimmer
+      // The actual trimming will happen via the video editor canvas export
+      setShowTrimmer(false);
+      console.log("Keep regions:", keepRegions);
+      // TODO: integrate with video editor export pipeline
+    },
+    []
+  );
 
   return (
     <div className="bg-background text-foreground min-h-screen overflow-x-hidden">
@@ -418,6 +452,29 @@ const Studio = () => {
               enabled={systemAudioEnabled}
             />
           </motion.div>
+        )}
+
+        {/* Recording Progress Panel */}
+        {(isRecording || isPaused) && (
+          <RecordingProgressPanel
+            micStream={micStream}
+            screenStream={screenStream}
+            duration={duration}
+            isRecording={isRecording}
+            isPaused={isPaused}
+            videoRef={screenVideoRef}
+            canvasRef={canvasRef}
+            sourceType={sourceType}
+          />
+        )}
+
+        {/* Live Skip Timeline */}
+        {(isRecording || isPaused) && skipRegions.length > 0 && (
+          <LiveSkipTimeline
+            duration={duration}
+            skipRegions={skipRegions}
+            currentTime={duration}
+          />
         )}
 
         {/* Editor mode */}
@@ -550,10 +607,19 @@ const Studio = () => {
                   <Square size={18} />
                   Stop
                 </Button>
+                <SkipMarkerButton
+                  duration={duration}
+                  isRecording={isRecording}
+                  isPaused={isPaused}
+                  skipRegions={skipRegions}
+                  onAddSkipStart={handleSkipStart}
+                  onAddSkipEnd={handleSkipEnd}
+                  isMarking={isMarkingSkip}
+                />
               </motion.div>
             )}
 
-            {isStopped && !editingMode && (
+            {isStopped && !editingMode && !showTrimmer && (
               <motion.div
                 key="done"
                 initial={{ opacity: 0 }}
@@ -570,6 +636,17 @@ const Studio = () => {
                     <Wand2 size={18} />
                     Edit Video
                   </Button>
+                  {skipRegions.length > 0 && (
+                    <Button
+                      size="lg"
+                      variant="secondary"
+                      className="gap-2"
+                      onClick={() => setShowTrimmer(true)}
+                    >
+                      <Scissors size={18} />
+                      Trim Scenes ({skipRegions.length})
+                    </Button>
+                  )}
                   {exportedBlob ? (
                     <>
                       <Button size="lg" className="gap-2 glow-blue font-bold" onClick={() => handleDownload("edited")}>
@@ -631,6 +708,17 @@ const Studio = () => {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Multi-Range Trimmer */}
+        {isStopped && showTrimmer && recordedUrl && (
+          <MultiRangeTrimmer
+            duration={duration}
+            initialSkipRegions={skipRegions}
+            videoUrl={recordedUrl}
+            onConfirm={handleTrimConfirm}
+            onCancel={() => setShowTrimmer(false)}
+          />
+        )}
 
         {/* Tips */}
         <motion.div
