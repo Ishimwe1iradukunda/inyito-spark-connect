@@ -353,6 +353,17 @@ const Studio = () => {
     setIsMarkingSkip(false);
   }, [duration]);
 
+  const handleSkipUndo = useCallback(() => {
+    if (isMarkingSkip) {
+      // Cancel the in-progress mark
+      setSkipRegions((prev) => prev.filter((r) => r.endMs !== null));
+      setIsMarkingSkip(false);
+    } else if (skipRegions.length > 0) {
+      // Remove the last completed region
+      setSkipRegions((prev) => prev.slice(0, -1));
+    }
+  }, [isMarkingSkip, skipRegions.length]);
+
   const handleTrimConfirm = useCallback(
     async (keepRegions: { startMs: number; endMs: number }[]) => {
       // For now, store keep regions and close trimmer
@@ -614,7 +625,9 @@ const Studio = () => {
                   skipRegions={skipRegions}
                   onAddSkipStart={handleSkipStart}
                   onAddSkipEnd={handleSkipEnd}
+                  onUndo={handleSkipUndo}
                   isMarking={isMarkingSkip}
+                  canUndo={isMarkingSkip || skipRegions.length > 0}
                 />
               </motion.div>
             )}

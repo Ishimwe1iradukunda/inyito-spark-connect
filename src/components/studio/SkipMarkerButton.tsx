@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { SkipForward } from "lucide-react";
+import { SkipForward, Undo2 } from "lucide-react";
 
 export interface SkipRegion {
   startMs: number;
@@ -14,7 +14,9 @@ interface Props {
   skipRegions: SkipRegion[];
   onAddSkipStart: () => void;
   onAddSkipEnd: () => void;
+  onUndo: () => void;
   isMarking: boolean;
+  canUndo: boolean;
 }
 
 export default function SkipMarkerButton({
@@ -24,15 +26,18 @@ export default function SkipMarkerButton({
   skipRegions,
   onAddSkipStart,
   onAddSkipEnd,
+  onUndo,
   isMarking,
+  canUndo,
 }: Props) {
-  // Keyboard shortcut: S to toggle skip marking
+  // Keyboard shortcuts: S to toggle skip, Ctrl+Z to undo
   useEffect(() => {
     if (!isRecording && !isPaused) return;
 
     const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
       if (e.key === "s" || e.key === "S") {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
         e.preventDefault();
         if (isMarking) {
           onAddSkipEnd();
@@ -40,23 +45,42 @@ export default function SkipMarkerButton({
           onAddSkipStart();
         }
       }
+
+      if (e.key === "z" && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+        e.preventDefault();
+        onUndo();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isRecording, isPaused, isMarking, onAddSkipStart, onAddSkipEnd]);
+  }, [isRecording, isPaused, isMarking, onAddSkipStart, onAddSkipEnd, onUndo]);
 
   if (!isRecording && !isPaused) return null;
 
   return (
-    <Button
-      variant={isMarking ? "destructive" : "secondary"}
-      size="sm"
-      className="gap-2"
-      onClick={isMarking ? onAddSkipEnd : onAddSkipStart}
-    >
-      <SkipForward size={16} />
-      {isMarking ? "End Skip" : "Mark Skip"}
-      <kbd className="ml-1 px-1 py-0.5 bg-background/30 rounded text-[9px] font-mono">S</kbd>
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button
+        variant={isMarking ? "destructive" : "secondary"}
+        size="sm"
+        className="gap-2"
+        onClick={isMarking ? onAddSkipEnd : onAddSkipStart}
+      >
+        <SkipForward size={16} />
+        {isMarking ? "End Skip" : "Mark Skip"}
+        <kbd className="ml-1 px-1 py-0.5 bg-background/30 rounded text-[9px] font-mono">S</kbd>
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="gap-1.5"
+        disabled={!canUndo}
+        onClick={onUndo}
+      >
+        <Undo2 size={14} />
+        Undo
+        <kbd className="ml-1 px-1 py-0.5 bg-background/30 rounded text-[9px] font-mono">⌘Z</kbd>
+      </Button>
+    </div>
   );
 }
