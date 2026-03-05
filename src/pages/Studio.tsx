@@ -330,7 +330,17 @@ const Studio = () => {
   const handleExportDone = (blob: Blob) => {
     setExportedBlob(blob);
     setEditingMode(false);
+    // After export, user lands on the review/download screen
   };
+
+  // Auto-enter editing mode when recording stops
+  useEffect(() => {
+    if (isStopped && recordedUrl && !editingMode && !exportedBlob) {
+      // Small delay so the user sees the transition
+      const t = setTimeout(() => setEditingMode(true), 600);
+      return () => clearTimeout(t);
+    }
+  }, [isStopped, recordedUrl, editingMode, exportedBlob]);
 
   const handleReset = () => {
     setEditingMode(false);
