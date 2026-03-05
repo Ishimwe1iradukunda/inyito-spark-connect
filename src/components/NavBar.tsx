@@ -51,10 +51,12 @@ const NavBar = () => {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 onClick={() => navigate("/")}
-                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group"
+                className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group bg-secondary/60 hover:bg-secondary rounded-lg px-2.5 py-1.5"
+                title="Return to Home"
               >
                 <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
                 <Home size={14} />
+                <span className="hidden sm:inline text-xs">Home</span>
               </motion.button>
             )}
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
