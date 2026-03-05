@@ -650,16 +650,19 @@ const Studio = () => {
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-4"
               >
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="lg"
-                    className="gap-2 glow-purple font-bold"
-                    onClick={() => setEditingMode(true)}
-                  >
-                    <Wand2 size={18} />
-                    Edit Video
-                  </Button>
-                  {skipRegions.length > 0 && (
+                <div className="flex items-center gap-3 flex-wrap justify-center">
+                  {/* If no export yet, primary action is Edit */}
+                  {!exportedBlob && (
+                    <Button
+                      size="lg"
+                      className="gap-2 glow-purple font-bold"
+                      onClick={() => setEditingMode(true)}
+                    >
+                      <Wand2 size={18} />
+                      Edit Video
+                    </Button>
+                  )}
+                  {skipRegions.length > 0 && !exportedBlob && (
                     <Button
                       size="lg"
                       variant="secondary"
@@ -670,7 +673,8 @@ const Studio = () => {
                       Trim Scenes ({skipRegions.length})
                     </Button>
                   )}
-                  {exportedBlob ? (
+                  {/* After export, show download/share as primary */}
+                  {exportedBlob && (
                     <>
                       <Button size="lg" className="gap-2 glow-blue font-bold" onClick={() => handleDownload("edited")}>
                         <Download size={18} />
@@ -680,12 +684,16 @@ const Studio = () => {
                         <Download size={18} />
                         Download Original
                       </Button>
+                      <Button
+                        size="lg"
+                        variant="secondary"
+                        className="gap-2"
+                        onClick={() => setEditingMode(true)}
+                      >
+                        <Wand2 size={18} />
+                        Re-Edit
+                      </Button>
                     </>
-                  ) : (
-                    <Button size="lg" className="gap-2 glow-blue font-bold" onClick={() => handleDownload("original")}>
-                      <Download size={18} />
-                      Download
-                    </Button>
                   )}
                   <Button size="lg" variant="secondary" className="gap-2" onClick={() => setShareOpen(true)}>
                     <Share2 size={18} />
