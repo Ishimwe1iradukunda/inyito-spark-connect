@@ -405,7 +405,23 @@ const Studio = () => {
           </p>
         </motion.div>
 
-        {/* Source Selector */}
+        {/* Workflow Step Indicator */}
+        {(isStopped || isRecording || isPaused) && (
+          <WorkflowSteps
+            currentStep={
+              isRecording || isPaused
+                ? "recording"
+                : editingMode
+                ? "editing"
+                : showTrimmer
+                ? "trimming"
+                : exportedBlob
+                ? "done"
+                : "editing"
+            }
+          />
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
