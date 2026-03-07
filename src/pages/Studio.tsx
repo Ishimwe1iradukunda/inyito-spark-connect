@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import VideoEditor from "@/components/studio/VideoEditor";
+import WorkflowSteps from "@/components/studio/WorkflowSteps";
 import ShareModal from "@/components/studio/ShareModal";
 import AudioLevelMeter from "@/components/studio/AudioLevelMeter";
 import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
@@ -404,7 +405,23 @@ const Studio = () => {
           </p>
         </motion.div>
 
-        {/* Source Selector */}
+        {/* Workflow Step Indicator */}
+        {(isStopped || isRecording || isPaused) && (
+          <WorkflowSteps
+            currentStep={
+              isRecording || isPaused
+                ? "recording"
+                : editingMode
+                ? "editing"
+                : showTrimmer
+                ? "trimming"
+                : exportedBlob
+                ? "done"
+                : "editing"
+            }
+          />
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

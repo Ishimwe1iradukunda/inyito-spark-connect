@@ -4,6 +4,8 @@ import LogoReveal from "@/components/scenes/LogoReveal";
 import GlobalConnectionWeb from "@/components/scenes/GlobalConnectionWeb";
 import MultiGenerationMontage from "@/components/scenes/MultiGenerationMontage";
 import LifeAspectsShowcase from "@/components/scenes/LifeAspectsShowcase";
+import StatsSection from "@/components/StatsSection";
+import TestimonialsSection from "@/components/TestimonialsSection";
 import CTASection from "@/components/CTASection";
 import SiteFooter from "@/components/SiteFooter";
 import CinemaMode from "@/components/CinemaMode";
@@ -58,8 +60,10 @@ const Index = () => {
       <main>
         <LogoReveal />
         <GlobalConnectionWeb />
+        <StatsSection />
         <MultiGenerationMontage />
         <LifeAspectsShowcase />
+        <TestimonialsSection />
         <CTASection />
       </main>
       <SiteFooter />
