@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import VideoEditor from "@/components/studio/VideoEditor";
+import WorkflowSteps from "@/components/studio/WorkflowSteps";
 import ShareModal from "@/components/studio/ShareModal";
 import AudioLevelMeter from "@/components/studio/AudioLevelMeter";
 import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
