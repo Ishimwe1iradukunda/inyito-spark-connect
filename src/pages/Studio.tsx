@@ -16,6 +16,8 @@ import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
 import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarkerButton";
 import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
 import MultiRangeTrimmer from "@/components/studio/MultiRangeTrimmer";
+import LiveStreamPanel from "@/components/studio/LiveStreamPanel";
+import { type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
   Camera,
@@ -40,6 +42,7 @@ import {
   Wand2,
   Share2,
   Scissors,
+  Radio,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
