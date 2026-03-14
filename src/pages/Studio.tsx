@@ -73,6 +73,8 @@ const Studio = () => {
 
   /* Source states */
   const [sourceType, setSourceType] = useState<SourceType>("screen");
+  const [deviceSelection, setDeviceSelection] = useState<DeviceSelection>({ audioInputId: "default", videoInputId: "default" });
+  const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>({ resolution: "1080p", fps: 30 });
   const [micEnabled, setMicEnabled] = useState(true);
   const [systemAudioEnabled, setSystemAudioEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
