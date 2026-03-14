@@ -524,6 +524,17 @@ const Studio = () => {
           </Button>
         </motion.div>
 
+        {/* Device & Quality Settings — only in record mode when idle */}
+        {studioMode === "record" && isIdle && (
+          <DeviceSelector
+            devices={deviceSelection}
+            quality={recordingQuality}
+            onDeviceChange={setDeviceSelection}
+            onQualityChange={setRecordingQuality}
+            disabled={!isIdle}
+          />
+        )}
+
         {/* Live Stream Panel — shown in stream mode */}
         {studioMode === "stream" && (
           <div className="max-w-4xl mx-auto mb-8">
