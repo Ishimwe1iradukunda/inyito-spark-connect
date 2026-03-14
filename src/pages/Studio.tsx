@@ -635,11 +635,22 @@ const Studio = () => {
               </motion.div>
             )}
 
-            {/* IDLE placeholder */}
-            {isIdle && !isStopped && !countdown && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                <Video size={48} className="opacity-30" />
-                <p className="text-sm">Select a source and hit Record</p>
+            {/* IDLE — source preview or placeholder */}
+            {isIdle && !isStopped && !countdown && studioMode === "record" && (
+              <div className="absolute inset-0">
+                {sourceType === "camera" || sourceType === "both" ? (
+                  <SourcePreview
+                    sourceType={sourceType}
+                    videoDeviceId={deviceSelection.videoInputId}
+                    audioDeviceId={deviceSelection.audioInputId}
+                    micEnabled={micEnabled}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground h-full">
+                    <Video size={48} className="opacity-30" />
+                    <p className="text-sm">Select a source and hit Record</p>
+                  </div>
+                )}
               </div>
             )}
 
