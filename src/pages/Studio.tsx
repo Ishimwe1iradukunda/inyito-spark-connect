@@ -18,6 +18,8 @@ import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarke
 import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
 import MultiRangeTrimmer from "@/components/studio/MultiRangeTrimmer";
 import LiveStreamPanel from "@/components/studio/LiveStreamPanel";
+import DeviceSelector, { type DeviceSelection, type RecordingQuality, RESOLUTIONS } from "@/components/studio/DeviceSelector";
+import SourcePreview from "@/components/studio/SourcePreview";
 import { type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
@@ -71,6 +73,8 @@ const Studio = () => {
 
   /* Source states */
   const [sourceType, setSourceType] = useState<SourceType>("screen");
+  const [deviceSelection, setDeviceSelection] = useState<DeviceSelection>({ audioInputId: "default", videoInputId: "default" });
+  const [recordingQuality, setRecordingQuality] = useState<RecordingQuality>({ resolution: "1080p", fps: 30 });
   const [micEnabled, setMicEnabled] = useState(true);
   const [systemAudioEnabled, setSystemAudioEnabled] = useState(true);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -110,9 +114,10 @@ const Studio = () => {
 
   /* ---- Acquire screen ---- */
   const acquireScreen = useCallback(async () => {
+    const res = RESOLUTIONS[recordingQuality.resolution];
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: 1920, height: 1080 },
+        video: { width: res.width, height: res.height, frameRate: recordingQuality.fps },
         audio: systemAudioEnabled,
       });
       setScreenStream(stream);
@@ -124,14 +129,26 @@ const Studio = () => {
       console.error("Screen capture denied");
       return null;
     }
-  }, [systemAudioEnabled]);
+  }, [systemAudioEnabled, recordingQuality]);
 
   /* ---- Acquire camera ---- */
   const acquireCamera = useCallback(async () => {
     try {
+      const videoConstraints: MediaTrackConstraints = {
+        width: 640, height: 480, frameRate: recordingQuality.fps,
+      };
+      if (deviceSelection.videoInputId && deviceSelection.videoInputId !== "default") {
+        videoConstraints.deviceId = { exact: deviceSelection.videoInputId };
+      }
+      const audioConstraints: MediaTrackConstraints | boolean = micEnabled
+        ? deviceSelection.audioInputId && deviceSelection.audioInputId !== "default"
+          ? { deviceId: { exact: deviceSelection.audioInputId } }
+          : true
+        : false;
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: micEnabled,
+        video: videoConstraints,
+        audio: audioConstraints,
       });
       setCameraStream(stream);
       if (cameraVideoRef.current) {
@@ -142,15 +159,16 @@ const Studio = () => {
       console.error("Camera access denied");
       return null;
     }
-  }, [micEnabled]);
+  }, [micEnabled, deviceSelection, recordingQuality]);
 
   /* ---- Combine streams on canvas ---- */
   const buildCompositeStream = useCallback(
     (screen: MediaStream | null, cam: MediaStream | null): MediaStream => {
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d")!;
-      canvas.width = 1920;
-      canvas.height = 1080;
+      const res = RESOLUTIONS[recordingQuality.resolution];
+      canvas.width = res.width;
+      canvas.height = res.height;
 
       const draw = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -234,7 +252,11 @@ const Studio = () => {
     /* Add mic audio if enabled and not already present */
     if (micEnabled && sourceType !== "camera") {
       try {
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const micConstraints: MediaTrackConstraints = {};
+        if (deviceSelection.audioInputId && deviceSelection.audioInputId !== "default") {
+          micConstraints.deviceId = { exact: deviceSelection.audioInputId };
+        }
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: micConstraints.deviceId ? micConstraints : true });
         setMicStream(mic);
         mic.getAudioTracks().forEach((t) => stream!.addTrack(t));
       } catch {
@@ -502,6 +524,17 @@ const Studio = () => {
           </Button>
         </motion.div>
 
+        {/* Device & Quality Settings — only in record mode when idle */}
+        {studioMode === "record" && isIdle && (
+          <DeviceSelector
+            devices={deviceSelection}
+            quality={recordingQuality}
+            onDeviceChange={setDeviceSelection}
+            onQualityChange={setRecordingQuality}
+            disabled={!isIdle}
+          />
+        )}
+
         {/* Live Stream Panel — shown in stream mode */}
         {studioMode === "stream" && (
           <div className="max-w-4xl mx-auto mb-8">
@@ -602,11 +635,22 @@ const Studio = () => {
               </motion.div>
             )}
 
-            {/* IDLE placeholder */}
-            {isIdle && !isStopped && !countdown && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                <Video size={48} className="opacity-30" />
-                <p className="text-sm">Select a source and hit Record</p>
+            {/* IDLE — source preview or placeholder */}
+            {isIdle && !isStopped && !countdown && studioMode === "record" && (
+              <div className="absolute inset-0">
+                {sourceType === "camera" || sourceType === "both" ? (
+                  <SourcePreview
+                    sourceType={sourceType}
+                    videoDeviceId={deviceSelection.videoInputId}
+                    audioDeviceId={deviceSelection.audioInputId}
+                    micEnabled={micEnabled}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground h-full">
+                    <Video size={48} className="opacity-30" />
+                    <p className="text-sm">Select a source and hit Record</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -830,10 +874,11 @@ const Studio = () => {
             <Settings size={16} className="text-primary" /> Quick Tips
           </h3>
           <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
-            <li>Choose <strong>Screen + Camera</strong> for a webcam overlay in the bottom-right.</li>
-            <li>System audio is captured when you share a browser tab with "Share tab audio" checked.</li>
+            <li>Switch between <strong>Record</strong> and <strong>Live Stream</strong> modes using the toggle at the top.</li>
+            <li>Click <strong>Show Device & Quality Settings</strong> to pick your mic, camera, resolution, and frame rate.</li>
+            <li>Choose <strong>Camera</strong> or <strong>Screen + Camera</strong> to see a live preview before recording.</li>
             <li>After recording, click <strong>Edit Video</strong> to trim, add text overlays, apply filters, and animate with keyframes.</li>
-            <li>Download the <strong>original</strong> or <strong>edited</strong> version — or save to cloud for later.</li>
+            <li>For live streaming, paste your RTMP URL and stream key from YouTube, Twitch, or any platform.</li>
             <li>Use <kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> to play/pause and arrow keys to step frames in the editor.</li>
           </ul>
         </motion.div>
