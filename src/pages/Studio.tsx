@@ -252,7 +252,11 @@ const Studio = () => {
     /* Add mic audio if enabled and not already present */
     if (micEnabled && sourceType !== "camera") {
       try {
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const micConstraints: MediaTrackConstraints = {};
+        if (deviceSelection.audioInputId && deviceSelection.audioInputId !== "default") {
+          micConstraints.deviceId = { exact: deviceSelection.audioInputId };
+        }
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: micConstraints.deviceId ? micConstraints : true });
         setMicStream(mic);
         mic.getAudioTracks().forEach((t) => stream!.addTrack(t));
       } catch {
