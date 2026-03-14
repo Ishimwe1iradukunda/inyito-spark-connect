@@ -86,6 +86,51 @@ export type Database = {
         }
         Relationships: []
       }
+      stream_configs: {
+        Row: {
+          backup_url: string | null
+          category: string
+          created_at: string
+          id: string
+          is_default: boolean
+          platform: string
+          privacy: string
+          stream_key: string | null
+          stream_url: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          backup_url?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          platform?: string
+          privacy?: string
+          stream_key?: string | null
+          stream_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          backup_url?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          platform?: string
+          privacy?: string
+          stream_key?: string | null
+          stream_url?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       templates: {
         Row: {
           category: string

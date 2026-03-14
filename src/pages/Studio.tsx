@@ -8,6 +8,7 @@ import { useMediaRecorder, RecordingState } from "@/hooks/useMediaRecorder";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 import VideoEditor from "@/components/studio/VideoEditor";
 import WorkflowSteps from "@/components/studio/WorkflowSteps";
 import ShareModal from "@/components/studio/ShareModal";
@@ -16,6 +17,8 @@ import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
 import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarkerButton";
 import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
 import MultiRangeTrimmer from "@/components/studio/MultiRangeTrimmer";
+import LiveStreamPanel from "@/components/studio/LiveStreamPanel";
+import { type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
   Camera,
@@ -40,6 +43,7 @@ import {
   Wand2,
   Share2,
   Scissors,
+  Radio,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -54,12 +58,17 @@ function formatTime(ms: number) {
 }
 
 type SourceType = "screen" | "camera" | "both";
+type StudioMode = "record" | "stream";
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
 const Studio = () => {
+  /* Studio mode */
+  const [studioMode, setStudioMode] = useState<StudioMode>("record");
+  const [isStreaming, setIsStreaming] = useState(false);
+
   /* Source states */
   const [sourceType, setSourceType] = useState<SourceType>("screen");
   const [micEnabled, setMicEnabled] = useState(true);
@@ -400,9 +409,32 @@ const Studio = () => {
           <h1 className="text-3xl sm:text-4xl font-black mb-2">
             <span className="text-gradient-brand">Recording Studio</span>
           </h1>
-          <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Capture your screen, camera, or both — with audio. Download or upload to social media.
+          <p className="text-muted-foreground text-sm max-w-md mx-auto mb-4">
+            Capture your screen, camera, or both — with audio. Stream live or download.
           </p>
+          {/* Mode Toggle */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/50 border border-border">
+            <Button
+              variant={studioMode === "record" ? "default" : "ghost"}
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => setStudioMode("record")}
+              disabled={isRecording || isPaused || isStreaming}
+            >
+              <Circle size={14} className="fill-current" />
+              Record
+            </Button>
+            <Button
+              variant={studioMode === "stream" ? "default" : "ghost"}
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => setStudioMode("stream")}
+              disabled={isRecording || isPaused}
+            >
+              <Radio size={14} />
+              Live Stream
+            </Button>
+          </div>
         </motion.div>
 
         {/* Workflow Step Indicator */}
@@ -470,7 +502,26 @@ const Studio = () => {
           </Button>
         </motion.div>
 
-        {/* Audio Level Meters — visible during recording */}
+        {/* Live Stream Panel — shown in stream mode */}
+        {studioMode === "stream" && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <LiveStreamPanel
+              isStreaming={isStreaming}
+              onGoLive={(config: StreamConfig) => {
+                setIsStreaming(true);
+                toast({
+                  title: "Going live!",
+                  description: `Streaming "${config.title}" to ${config.platform}`,
+                });
+              }}
+              onStopStream={() => {
+                setIsStreaming(false);
+                toast({ title: "Stream ended" });
+              }}
+            />
+          </div>
+        )}
+
         {(isRecording || isPaused) && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
