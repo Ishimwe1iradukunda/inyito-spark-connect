@@ -501,7 +501,26 @@ const Studio = () => {
           </Button>
         </motion.div>
 
-        {/* Audio Level Meters — visible during recording */}
+        {/* Live Stream Panel — shown in stream mode */}
+        {studioMode === "stream" && (
+          <div className="max-w-4xl mx-auto mb-8">
+            <LiveStreamPanel
+              isStreaming={isStreaming}
+              onGoLive={(config: StreamConfig) => {
+                setIsStreaming(true);
+                toast({
+                  title: "Going live!",
+                  description: `Streaming "${config.title}" to ${config.platform}`,
+                });
+              }}
+              onStopStream={() => {
+                setIsStreaming(false);
+                toast({ title: "Stream ended" });
+              }}
+            />
+          </div>
+        )}
+
         {(isRecording || isPaused) && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
