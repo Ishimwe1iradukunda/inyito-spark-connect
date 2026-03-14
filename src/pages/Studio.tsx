@@ -874,10 +874,11 @@ const Studio = () => {
             <Settings size={16} className="text-primary" /> Quick Tips
           </h3>
           <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4">
-            <li>Choose <strong>Screen + Camera</strong> for a webcam overlay in the bottom-right.</li>
-            <li>System audio is captured when you share a browser tab with "Share tab audio" checked.</li>
+            <li>Switch between <strong>Record</strong> and <strong>Live Stream</strong> modes using the toggle at the top.</li>
+            <li>Click <strong>Show Device & Quality Settings</strong> to pick your mic, camera, resolution, and frame rate.</li>
+            <li>Choose <strong>Camera</strong> or <strong>Screen + Camera</strong> to see a live preview before recording.</li>
             <li>After recording, click <strong>Edit Video</strong> to trim, add text overlays, apply filters, and animate with keyframes.</li>
-            <li>Download the <strong>original</strong> or <strong>edited</strong> version — or save to cloud for later.</li>
+            <li>For live streaming, paste your RTMP URL and stream key from YouTube, Twitch, or any platform.</li>
             <li>Use <kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> to play/pause and arrow keys to step frames in the editor.</li>
           </ul>
         </motion.div>
