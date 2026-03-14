@@ -18,6 +18,8 @@ import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarke
 import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
 import MultiRangeTrimmer from "@/components/studio/MultiRangeTrimmer";
 import LiveStreamPanel from "@/components/studio/LiveStreamPanel";
+import DeviceSelector, { type DeviceSelection, type RecordingQuality, RESOLUTIONS } from "@/components/studio/DeviceSelector";
+import SourcePreview from "@/components/studio/SourcePreview";
 import { type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
