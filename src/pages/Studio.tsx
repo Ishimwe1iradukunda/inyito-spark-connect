@@ -166,8 +166,9 @@ const Studio = () => {
     (screen: MediaStream | null, cam: MediaStream | null): MediaStream => {
       const canvas = canvasRef.current!;
       const ctx = canvas.getContext("2d")!;
-      canvas.width = 1920;
-      canvas.height = 1080;
+      const res = RESOLUTIONS[recordingQuality.resolution];
+      canvas.width = res.width;
+      canvas.height = res.height;
 
       const draw = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
