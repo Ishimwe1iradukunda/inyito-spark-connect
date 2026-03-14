@@ -408,9 +408,32 @@ const Studio = () => {
           <h1 className="text-3xl sm:text-4xl font-black mb-2">
             <span className="text-gradient-brand">Recording Studio</span>
           </h1>
-          <p className="text-muted-foreground text-sm max-w-md mx-auto">
-            Capture your screen, camera, or both — with audio. Download or upload to social media.
+          <p className="text-muted-foreground text-sm max-w-md mx-auto mb-4">
+            Capture your screen, camera, or both — with audio. Stream live or download.
           </p>
+          {/* Mode Toggle */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/50 border border-border">
+            <Button
+              variant={studioMode === "record" ? "default" : "ghost"}
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => setStudioMode("record")}
+              disabled={isRecording || isPaused || isStreaming}
+            >
+              <Circle size={14} className="fill-current" />
+              Record
+            </Button>
+            <Button
+              variant={studioMode === "stream" ? "default" : "ghost"}
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => setStudioMode("stream")}
+              disabled={isRecording || isPaused}
+            >
+              <Radio size={14} />
+              Live Stream
+            </Button>
+          </div>
         </motion.div>
 
         {/* Workflow Step Indicator */}
