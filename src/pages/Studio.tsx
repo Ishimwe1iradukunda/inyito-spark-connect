@@ -114,9 +114,10 @@ const Studio = () => {
 
   /* ---- Acquire screen ---- */
   const acquireScreen = useCallback(async () => {
+    const res = RESOLUTIONS[recordingQuality.resolution];
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { width: 1920, height: 1080 },
+        video: { width: res.width, height: res.height, frameRate: recordingQuality.fps },
         audio: systemAudioEnabled,
       });
       setScreenStream(stream);
@@ -128,7 +129,7 @@ const Studio = () => {
       console.error("Screen capture denied");
       return null;
     }
-  }, [systemAudioEnabled]);
+  }, [systemAudioEnabled, recordingQuality]);
 
   /* ---- Acquire camera ---- */
   const acquireCamera = useCallback(async () => {
