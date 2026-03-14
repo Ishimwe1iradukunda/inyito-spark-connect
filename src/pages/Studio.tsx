@@ -57,6 +57,7 @@ function formatTime(ms: number) {
 }
 
 type SourceType = "screen" | "camera" | "both";
+type StudioMode = "record" | "stream";
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
