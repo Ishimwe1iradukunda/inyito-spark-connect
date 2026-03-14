@@ -134,9 +134,21 @@ const Studio = () => {
   /* ---- Acquire camera ---- */
   const acquireCamera = useCallback(async () => {
     try {
+      const videoConstraints: MediaTrackConstraints = {
+        width: 640, height: 480, frameRate: recordingQuality.fps,
+      };
+      if (deviceSelection.videoInputId && deviceSelection.videoInputId !== "default") {
+        videoConstraints.deviceId = { exact: deviceSelection.videoInputId };
+      }
+      const audioConstraints: MediaTrackConstraints | boolean = micEnabled
+        ? deviceSelection.audioInputId && deviceSelection.audioInputId !== "default"
+          ? { deviceId: { exact: deviceSelection.audioInputId } }
+          : true
+        : false;
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: micEnabled,
+        video: videoConstraints,
+        audio: audioConstraints,
       });
       setCameraStream(stream);
       if (cameraVideoRef.current) {
@@ -147,7 +159,7 @@ const Studio = () => {
       console.error("Camera access denied");
       return null;
     }
-  }, [micEnabled]);
+  }, [micEnabled, deviceSelection, recordingQuality]);
 
   /* ---- Combine streams on canvas ---- */
   const buildCompositeStream = useCallback(
