@@ -64,6 +64,10 @@ type StudioMode = "record" | "stream";
 /* ------------------------------------------------------------------ */
 
 const Studio = () => {
+  /* Studio mode */
+  const [studioMode, setStudioMode] = useState<StudioMode>("record");
+  const [isStreaming, setIsStreaming] = useState(false);
+
   /* Source states */
   const [sourceType, setSourceType] = useState<SourceType>("screen");
   const [micEnabled, setMicEnabled] = useState(true);
