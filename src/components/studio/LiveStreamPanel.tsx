@@ -549,7 +549,7 @@ const LiveStreamPanel = ({
                           }
                         >
                           <ExternalLink size={12} /> Open{" "}
-                          {platform.id === "custom" ? "" : platform.name}
+                          {(platform as any).id === "custom" ? "" : platform.name}
                         </Button>
                       )}
                     </div>
