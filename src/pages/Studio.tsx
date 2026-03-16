@@ -878,7 +878,8 @@ const Studio = () => {
             <li>Click <strong>Show Device & Quality Settings</strong> to pick your mic, camera, resolution, and frame rate.</li>
             <li>Choose <strong>Camera</strong> or <strong>Screen + Camera</strong> to see a live preview before recording.</li>
             <li>After recording, click <strong>Edit Video</strong> to trim, add text overlays, apply filters, and animate with keyframes.</li>
-            <li>For live streaming, paste your RTMP URL and stream key from YouTube, Twitch, or any platform.</li>
+            <li>For live streaming, add a <strong>destination</strong> (YouTube, Twitch, Facebook, Kick, or Custom RTMP), then paste your stream URL and stream key from that platform.</li>
+            <li>You can add <strong>multiple destinations</strong> to broadcast to several platforms at once.</li>
             <li>Use <kbd className="px-1 py-0.5 bg-muted rounded text-[8px] font-mono">Space</kbd> to play/pause and arrow keys to step frames in the editor.</li>
           </ul>
         </motion.div>
