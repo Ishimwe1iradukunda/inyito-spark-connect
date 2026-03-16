@@ -91,7 +91,7 @@ const PLATFORMS = [
 
 type PlatformId = (typeof PLATFORMS)[number]["id"];
 
-const getPlatform = (id: string) => PLATFORMS.find((p) => p.id === id) || PLATFORMS[4];
+const getPlatform = (id: string) => PLATFORMS.find((p) => p.id === id) || PLATFORMS.find((p) => p.id === "custom")!;
 
 /* ------------------------------------------------------------------ */
 /*  Stream Health Bar                                                   */
