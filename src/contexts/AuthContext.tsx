@@ -110,7 +110,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     (password: string, currentPassword?: string) =>
       wrap(() =>
         supabase.auth.updateUser(
-          currentPassword ? { password, current_password: currentPassword } : { password },
+          (currentPassword
+            ? { password, current_password: currentPassword }
+            : { password }) as Parameters<typeof supabase.auth.updateUser>[0],
         ),
       ),
     [],
