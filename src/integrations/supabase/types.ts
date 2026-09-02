@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          payment_type: string | null
+          raw_response: Json | null
+          status: string
+          transaction_id: string | null
+          tx_ref: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          payment_type?: string | null
+          raw_response?: Json | null
+          status?: string
+          transaction_id?: string | null
+          tx_ref: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          payment_type?: string | null
+          raw_response?: Json | null
+          status?: string
+          transaction_id?: string | null
+          tx_ref?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
