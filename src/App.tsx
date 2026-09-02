@@ -13,6 +13,9 @@ import ResetPassword from "./pages/ResetPassword";
 import MyRecordings from "./pages/MyRecordings";
 import Templates from "./pages/Templates";
 import Profile from "./pages/Profile";
+import Checkout from "./pages/Checkout";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
