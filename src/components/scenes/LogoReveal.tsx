@@ -31,7 +31,7 @@ const LogoReveal = () => {
 
   return (
     <section
-      id="about"
+      id="home"
       className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden"
       style={{
         background: "radial-gradient(ellipse at center, hsl(240 30% 10%) 0%, hsl(var(--background)) 70%)",

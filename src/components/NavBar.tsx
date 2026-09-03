@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen, UserCircle } from "lucide-react";
+import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen, UserCircle, CreditCard } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -22,6 +22,7 @@ const NavBar = () => {
   const routeLinks: { label: string; path: string }[] = [
     { label: "Studio", path: "/studio" },
     { label: "Templates", path: "/templates" },
+    { label: "Pay", path: "/checkout" },
     ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
   ];
 
@@ -31,6 +32,16 @@ const NavBar = () => {
     e.preventDefault();
     navigate(path);
     setMenuOpen(false);
+  };
+
+  const handleAnchorClick = (e: React.MouseEvent, hash: string) => {
+    e.preventDefault();
+    setMenuOpen(false);
+    if (isHome) {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      navigate(`/#${hash}`);
+    }
   };
 
   return (
