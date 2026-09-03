@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import NavBar from "@/components/NavBar";
 import LogoReveal from "@/components/scenes/LogoReveal";
 import GlobalConnectionWeb from "@/components/scenes/GlobalConnectionWeb";
@@ -14,6 +15,17 @@ import { Video, Clapperboard } from "lucide-react";
 
 const Index = () => {
   const [cinemaOpen, setCinemaOpen] = useState(false);
+  const { hash } = useLocation();
+
+  useEffect(() => {
+    if (!hash) return;
+    const id = hash.slice(1);
+    const t = setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [hash]);
+
 
   return (
     <div className="bg-background text-foreground min-h-screen overflow-x-hidden">
