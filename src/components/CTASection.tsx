@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, CreditCard } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const BRAND_COLORS = [
   "hsl(var(--brand-blue))",
@@ -26,6 +27,7 @@ interface Particle {
 }
 
 const CTASection = () => {
+  const navigate = useNavigate();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [particles, setParticles] = useState<Particle[]>([]);
@@ -173,6 +175,7 @@ const CTASection = () => {
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.96 }}
+            onClick={() => navigate("/auth")}
           >
             <span className="relative z-10 flex items-center gap-2">
               <Sparkles size={20} />
@@ -184,8 +187,18 @@ const CTASection = () => {
             variant="outline"
             size="lg"
             className="rounded-full px-8 py-4 text-base font-semibold border-border hover:border-primary"
+            onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
           >
             Learn More
+          </Button>
+
+          <Button
+            size="lg"
+            className="rounded-full px-8 py-4 text-base font-semibold gap-2"
+            onClick={() => navigate("/checkout")}
+          >
+            <CreditCard size={18} />
+            Pay Now
           </Button>
         </motion.div>
 
