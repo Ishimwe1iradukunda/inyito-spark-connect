@@ -95,7 +95,7 @@ const NavBar = () => {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6">
             {anchorLinks.map((link) => (
-              <a key={link} href={`#${link.toLowerCase()}`} className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+              <a key={link} href={`/#${link.toLowerCase()}`} onClick={(e) => handleAnchorClick(e, link.toLowerCase())} className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
                 {link}
               </a>
             ))}
@@ -108,6 +108,10 @@ const NavBar = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2 font-semibold" onClick={() => navigate("/checkout")}>
+              <CreditCard size={14} />
+              Pay Now
+            </Button>
             {user ? (
               <>
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/profile")}>
@@ -141,7 +145,7 @@ const NavBar = () => {
         {menuOpen && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden pb-4 border-t border-border mt-1">
             {anchorLinks.map((link) => (
-              <a key={link} href={`#${link.toLowerCase()}`} onClick={() => setMenuOpen(false)} className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium">
+              <a key={link} href={`/#${link.toLowerCase()}`} onClick={(e) => handleAnchorClick(e, link.toLowerCase())} className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium">
                 {link}
               </a>
             ))}
@@ -150,6 +154,9 @@ const NavBar = () => {
                 {label}
               </a>
             ))}
+            <Button variant="outline" className="w-full mt-3 gap-2 font-semibold" onClick={() => { navigate("/checkout"); setMenuOpen(false); }}>
+              <CreditCard size={14} /> Pay Now
+            </Button>
             {user ? (
               <Button variant="ghost" className="w-full mt-3 gap-2" onClick={() => { signOut(); setMenuOpen(false); }}>
                 <LogOut size={14} /> Sign Out
