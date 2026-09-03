@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const LETTERS = ["i", "n", "y", "i", "t", "o"];
 const COLORS = [
@@ -18,14 +19,30 @@ const SOCIAL_LINKS = [
 ];
 
 const FOOTER_LINKS = [
-  { label: "About", href: "#about" },
-  { label: "Features", href: "#features" },
-  { label: "Community", href: "#community" },
-  { label: "Privacy", href: "#" },
-  { label: "Terms", href: "#" },
+  { label: "About", href: "/#about" },
+  { label: "Features", href: "/#features" },
+  { label: "Community", href: "/#community" },
+  { label: "Studio", href: "/studio" },
+  { label: "Templates", href: "/templates" },
+  { label: "Pay Now", href: "/checkout" },
 ];
 
 const SiteFooter = () => {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+
+  const handleClick = (e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    if (href.startsWith("/#")) {
+      const id = href.slice(2);
+      if (pathname === "/") {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+    }
+    navigate(href);
+  };
+
   return (
     <footer className="border-t border-border bg-background py-12">
       <div className="max-w-6xl mx-auto px-4">
@@ -48,6 +65,7 @@ const SiteFooter = () => {
               <a
                 key={link.label}
                 href={link.href}
+                onClick={(e) => handleClick(e, link.href)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-sm"
               >
                 {link.label}
@@ -61,6 +79,7 @@ const SiteFooter = () => {
               <motion.a
                 key={link.label}
                 href={link.href}
+                onClick={(e) => handleClick(e, link.href)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
                 whileHover={{ scale: 1.1 }}
                 style={{ color: i === 0 ? undefined : undefined }}
