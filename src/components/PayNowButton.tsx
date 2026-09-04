@@ -4,6 +4,7 @@ import { Loader2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { logError, friendlyMessage } from "@/lib/errorLog";
 
 declare global {
   interface Window {
@@ -88,19 +89,33 @@ const PayNowButton = ({
               amount: String(data.amount),
               currency: data.currency,
             });
-            navigate(
-              verification?.verified
-                ? `/payment-success?${params.toString()}`
-                : `/payment-failed?${params.toString()}`,
-            );
-          } catch {
-            navigate(`/payment-failed?tx_ref=${data.tx_ref}`);
+            if (verification?.verified) {
+              navigate(`/payment-success?${params.toString()}`);
+            } else {
+              const reason =
+                response.status === "cancelled"
+                  ? "cancelled"
+                  : verification?.status === "failed"
+                    ? "declined"
+                    : "unverified";
+              params.set("reason", reason);
+              params.set("status", String(verification?.status ?? response.status ?? "unknown"));
+              logError("payment", `Payment not verified (${reason})`, {
+                tx_ref: data.tx_ref,
+                verification,
+              });
+              navigate(`/payment-failed?${params.toString()}`);
+            }
+          } catch (err) {
+            logError("payment", err, { tx_ref: data.tx_ref, stage: "verify" });
+            navigate(`/payment-failed?tx_ref=${data.tx_ref}&reason=network`);
           }
         },
         onclose: () => setLoading(false),
       });
-    } catch {
-      toast.error("Could not start payment. Please try again.");
+    } catch (err) {
+      logError("payment", err, { stage: "init", amount, currency });
+      toast.error(friendlyMessage(err, "Could not start payment. Please try again."));
       setLoading(false);
     }
   };
