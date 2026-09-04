@@ -1,111 +1,72 @@
+# Studio Upgrade: OBS-Class Production + YouTube Live Features
 
-# Live Video Editing with Real-Time Visual Preview
+## What exists today
+Recording with device/quality selection, skip markers, a full editor (trim, text, filters, transitions, keyframes, presets), scenes/sources, audio mixer, stream destinations (RTMP config), chat, templates, recordings dashboard, payments, auth.
 
-## Overview
-Transform the current video editor from a "hidden video + canvas" model into a fully interactive, live-editing experience where every change (trim position, text overlays, filters) is immediately visible on the video canvas as it plays. The user will see exactly what the final export looks like at all times.
-
-## Current State
-- The video element is hidden; a canvas renders frames via `requestAnimationFrame`
-- Filters and text overlays are drawn on canvas but the video is muted and looping silently
-- There are no playback controls (play/pause/seek) in the editor
-- The trim region is set via sliders but there's no visual feedback on the canvas (e.g., dimming outside trim bounds)
-- Text overlays are positioned via sliders -- not draggable on the canvas itself
-
-## What Will Change
-
-### 1. Interactive Video Playback Controls
-Add play/pause, seek bar, and time display directly in the editor preview area so users can scrub through the video and see live results.
-
-- Play/Pause toggle button overlaid on the canvas
-- Current time / total duration display
-- Constrain playback to the trim region (auto-loop between trimStart and trimEnd)
-- Playhead on the trim timeline syncs bi-directionally with the video
-
-### 2. Real-Time Filter Visualization
-Currently working but will be enhanced:
-- When adjusting any filter slider, the canvas updates in real-time (already via RAF loop -- will ensure video is playing or paused on a visible frame)
-- Add a split-screen "before/after" toggle: left half shows original, right half shows filtered -- rendered on the same canvas with a draggable divider line
-
-### 3. Draggable Text Overlays on Canvas
-Replace slider-based positioning with direct drag-and-drop on the canvas:
-- Click a text overlay on the canvas to select it
-- Drag to reposition (update x/y percentage in real-time)
-- Selected overlay gets a visible bounding box with handles
-- Keep slider controls as a secondary/precise input
-
-### 4. Trim Region Visual Feedback
-- When the playhead is outside the trim region, dim the canvas with a semi-transparent overlay and show "Outside trim range" indicator
-- Playback auto-skips to trimStart if user hits play while outside the region
-- Trim handles on the timeline become more interactive with frame-accurate snapping
-
-### 5. Active Edit Indicator Panel
-A small floating panel that shows what effects are currently active:
-- List of applied filters with non-default values (e.g., "Brightness: 120%")
-- Count of text overlays
-- Trim duration vs. original duration
-- Animates in/out as effects are added/removed
+## What's missing (and worth adding)
+Grouped into three phases so you can stop after any one of them.
 
 ---
 
-## Technical Plan
+## Phase 1 — Live production essentials (biggest impact)
 
-### Files to Create
-1. **`src/components/studio/VideoPlaybackControls.tsx`**
-   - Play/pause button, time display, seek slider
-   - Props: `videoRef`, `trimStart`, `trimEnd`, `currentTime`, `duration`, `onSeek`
-   - Constrains playback within trim bounds
+1. **Real compositing engine**
+   A single canvas that actually composes the scene sources (screen, camera, image, text, colour) with position, size, opacity and z-order, instead of a single-source preview. Recording and streaming both capture this composed canvas.
+   - Drag/resize handles on the preview for each source
+   - Camera picture-in-picture over screen share, with corner snapping
+   - 16:9 safe-area guides
 
-2. **`src/components/studio/CanvasOverlay.tsx`**
-   - Transparent overlay div positioned on top of the canvas
-   - Handles mouse events for dragging text overlays
-   - Renders selection boxes around active overlays
-   - Shows "Outside trim" dimming when applicable
+2. **Studio Mode (OBS-style)**
+   Side-by-side Preview and Program. Edit the hidden scene, then hit "Transition" to push it live, with cut/fade/stinger choice and duration.
 
-3. **`src/components/studio/ActiveEffectsIndicator.tsx`**
-   - Small floating badge/panel showing active effect count
-   - Lists non-default filter values and overlay count
-   - Uses framer-motion for enter/exit animations
+3. **Stream health & telemetry bar**
+   Live bitrate, dropped-frame estimate, FPS, CPU/encoder load hint, session timer, and a coloured health pill (Good / Degraded / Poor), the way OBS's status bar works.
 
-### Files to Modify
-4. **`src/components/studio/VideoEditor.tsx`** (major refactor)
-   - Add video playback state management (playing/paused)
-   - Integrate `VideoPlaybackControls` below the canvas
-   - Wrap canvas in a relative container with `CanvasOverlay` on top
-   - Update `drawFrame` to render trim-region dimming when outside bounds
-   - Add before/after split-view mode toggle
-   - Wire up drag events from `CanvasOverlay` to update overlay positions
-   - Pass play/pause state to constrain playback within trim region
+4. **Hotkeys panel**
+   Configurable keyboard shortcuts for start/stop recording, start/stop stream, mute mic, switch scene 1–9, transition. Saved per user.
 
-5. **`src/components/studio/TextOverlayEditor.tsx`**
-   - Add `selectedId` prop to highlight the currently selected overlay
-   - Add `onSelect` callback so canvas clicks sync with the panel
-   - Keep existing slider controls as precise fallback
+---
 
-6. **`src/components/studio/TrimTimeline.tsx`**
-   - Add animated playhead that moves in real-time during playback
-   - Add frame-preview tooltips on hover over the timeline track
+## Phase 2 — YouTube-live-inspired viewer features
 
-### Architecture
-```text
-+------------------------------------------+
-|          Canvas Preview Area              |
-|  +------------------------------------+  |
-|  |  <canvas> (video + filters + text) |  |
-|  |  <CanvasOverlay> (drag handles,    |  |
-|  |   selection boxes, trim dimming)   |  |
-|  +------------------------------------+  |
-|  [Play/Pause] --:-- / --:-- [Before/After]|
-|  [ActiveEffectsIndicator]                 |
-+------------------------------------------+
-|  [Trim & Cut] [Text] [Filters] tabs       |
-|  (existing panels, enhanced with sync)    |
-+------------------------------------------+
-|  [Export Edited Video]                    |
-+------------------------------------------+
-```
+5. **Stream overlays / lower thirds**
+   Reusable overlay widgets rendered onto the composed canvas: lower-third name card, live viewer count, running countdown ("starting soon"), ticker, on-screen alerts, and a BRB / Technical difficulties full-screen card.
 
-### Key Implementation Details
-- **Playback loop**: The existing RAF loop in `drawFrame` already runs continuously. Add a `isPlaying` state; when true, let the video play naturally (constrained to trim bounds). When paused, keep drawing the current frame so filter/text changes are still visible.
-- **Drag-on-canvas**: Use pointer events on the overlay div. On `pointerdown`, hit-test against overlay bounding boxes. On `pointermove`, update the overlay's x/y. On `pointerup`, finalize position.
-- **Before/after split**: In `drawFrame`, draw the original (no filters) on the left half and the filtered version on the right half, separated by a vertical line. The divider position is controlled by a draggable handle.
-- **Trim dimming**: After drawing the frame, if `currentTime < trimStart || currentTime > trimEnd`, draw a semi-transparent black rect over the canvas with centered text "Outside trim range".
+6. **Chat improvements**
+   Pinned message, moderator highlight, message-to-overlay ("show on stream"), slow-mode indicator, and simple word filter.
+
+7. **Multi-destination simulcast list**
+   Enable several configured destinations at once with per-destination ready/error state and a pre-flight checklist (key present, camera OK, mic level detected, disk space).
+
+8. **Replay buffer & instant clips**
+   Keep the last 30–60 s in memory while live/recording; a "Save Clip" button writes that window straight to the recordings library and offers a share link.
+
+---
+
+## Phase 3 — Post-production and library depth
+
+9. **Multi-track timeline in the editor**
+   Stack video, overlay and audio lanes with draggable clips, instead of a single trim range. Includes ripple delete of skipped scenes.
+
+10. **Audio polish**
+    Per-channel gain, noise gate, compressor and a simple 3-band EQ via Web Audio nodes, plus loudness (LUFS-ish) readout.
+
+11. **Auto-captions**
+    Speech-to-text on the recorded audio to generate a caption track, editable, burned in on export or downloadable as .srt.
+
+12. **Chapters & thumbnails**
+    Mark chapters on the timeline, auto-generate a thumbnail grid from frames, pick one as the recording's cover in the library.
+
+---
+
+## Technical notes
+- Compositing: one `<canvas>` driven by a RAF loop drawing each visible source in z-order; `canvas.captureStream()` merged with a Web Audio `MediaStreamDestination` feeds both `MediaRecorder` and any future relay. New files: `src/components/studio/Compositor.tsx`, `src/hooks/useCompositor.ts`.
+- Studio Mode: two scene states (`previewScene`, `programScene`) in Studio state; transition tween drawn on the program canvas.
+- Hotkeys: `user_hotkeys` table (user-scoped RLS + grants) plus a `useHotkeys` hook.
+- Overlays: JSONB overlay definitions on the scene record, drawn by the compositor; new `OverlayPanel.tsx`.
+- Replay buffer: rolling array of `MediaRecorder` timeslice chunks trimmed to the buffer duration.
+- Captions: audio extracted client-side and sent to a backend function using the built-in AI gateway speech-to-text; caption rows stored per recording.
+- Telemetry: `RTCPeerConnection.getStats` where a relay exists, otherwise derived from recorder chunk sizes and RAF frame timing.
+
+## Suggested order
+Phase 1 first (items 1–3 are the ones that make it feel like OBS), then 5 and 7, then the rest.
