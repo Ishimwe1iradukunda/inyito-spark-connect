@@ -23,14 +23,16 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <PWAInstallPrompt />
-          <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <GlobalErrorListener />
+        <BrowserRouter>
+          <AuthProvider>
+            <PWAInstallPrompt />
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/studio" element={<Studio />} />
             <Route path="/auth" element={<Auth />} />
