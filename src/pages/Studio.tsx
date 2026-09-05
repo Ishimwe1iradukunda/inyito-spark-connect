@@ -23,6 +23,11 @@ import SourcePreview from "@/components/studio/SourcePreview";
 import SceneManager, { type Scene, type SceneSource } from "@/components/studio/SceneManager";
 import AudioMixer, { type AudioChannel } from "@/components/studio/AudioMixer";
 import StreamChat from "@/components/studio/StreamChat";
+import Compositor, { DEFAULT_LAYOUT, type CompositorLayout } from "@/components/studio/Compositor";
+import StreamHealthBar from "@/components/studio/StreamHealthBar";
+import StudioModeDeck, { type TransitionKind } from "@/components/studio/StudioModeDeck";
+import HotkeysPanel from "@/components/studio/HotkeysPanel";
+import { useHotkeys } from "@/hooks/useHotkeys";
 import { type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
@@ -53,6 +58,9 @@ import {
   ChevronUp,
   Maximize2,
   Minimize2,
+  Keyboard,
+  Zap,
+  Film,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -121,6 +129,16 @@ const Studio = () => {
   const [skipRegions, setSkipRegions] = useState<SkipRegion[]>([]);
   const [isMarkingSkip, setIsMarkingSkip] = useState(false);
   const [showTrimmer, setShowTrimmer] = useState(false);
+
+  /* Compositor / studio mode / telemetry */
+  const [layout, setLayout] = useState<CompositorLayout>(DEFAULT_LAYOUT);
+  const [fps, setFps] = useState(0);
+  const [hotkeysOpen, setHotkeysOpen] = useState(false);
+  const [studioModeOn, setStudioModeOn] = useState(false);
+  const [previewSceneId, setPreviewSceneId] = useState("scene-1");
+  const [transitionKind, setTransitionKind] = useState<TransitionKind>("fade");
+  const [transitionMs, setTransitionMs] = useState(300);
+  const [transitioning, setTransitioning] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -136,6 +154,8 @@ const Studio = () => {
     recordedUrl,
     recordedBlob,
     duration,
+    bytesRecorded,
+    getReplayClip,
     startRecording,
     pauseRecording,
     resumeRecording,
@@ -205,46 +225,11 @@ const Studio = () => {
     }
   }, [micEnabled, deviceSelection, recordingQuality]);
 
-  /* ---- Composite stream ---- */
+  /* ---- Composite stream (from the live compositor canvas) ---- */
   const buildCompositeStream = useCallback(
     (screen: MediaStream | null, cam: MediaStream | null): MediaStream => {
       const canvas = canvasRef.current!;
-      const ctx = canvas.getContext("2d")!;
-      const res = RESOLUTIONS[recordingQuality.resolution];
-      canvas.width = res.width;
-      canvas.height = res.height;
-      const draw = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (screenVideoRef.current && screen) ctx.drawImage(screenVideoRef.current, 0, 0, canvas.width, canvas.height);
-        if (cameraVideoRef.current && cam) {
-          const pipW = 320, pipH = 240, margin = 24;
-          const x = canvas.width - pipW - margin, y = canvas.height - pipH - margin, r = 16;
-          ctx.save();
-          ctx.beginPath();
-          ctx.moveTo(x + r, y);
-          ctx.arcTo(x + pipW, y, x + pipW, y + pipH, r);
-          ctx.arcTo(x + pipW, y + pipH, x, y + pipH, r);
-          ctx.arcTo(x, y + pipH, x, y, r);
-          ctx.arcTo(x, y, x + pipW, y, r);
-          ctx.closePath();
-          ctx.clip();
-          ctx.drawImage(cameraVideoRef.current, x, y, pipW, pipH);
-          ctx.restore();
-          ctx.strokeStyle = "hsl(213,94%,54%)";
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(x + r, y);
-          ctx.arcTo(x + pipW, y, x + pipW, y + pipH, r);
-          ctx.arcTo(x + pipW, y + pipH, x, y + pipH, r);
-          ctx.arcTo(x, y + pipH, x, y, r);
-          ctx.arcTo(x, y, x + pipW, y, r);
-          ctx.closePath();
-          ctx.stroke();
-        }
-        if (state === "recording" || state === "paused") requestAnimationFrame(draw);
-      };
-      requestAnimationFrame(draw);
-      const canvasStream = canvas.captureStream(30);
+      const canvasStream = canvas.captureStream(recordingQuality.fps);
       const audioCtx = new AudioContext();
       const dest = audioCtx.createMediaStreamDestination();
       [screen, cam].forEach((s) => {
@@ -256,20 +241,21 @@ const Studio = () => {
       dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
       return canvasStream;
     },
-    [state, recordingQuality]
+    [recordingQuality]
   );
 
   /* ---- Start recording ---- */
   const handleStart = useCallback(async () => {
-    let stream: MediaStream | null = null;
-    if (sourceType === "screen") stream = await acquireScreen();
-    else if (sourceType === "camera") stream = await acquireCamera();
-    else {
-      const scr = await acquireScreen();
-      const cam = await acquireCamera();
-      if (scr || cam) stream = buildCompositeStream(scr, cam);
-    }
-    if (!stream) return;
+    let scr: MediaStream | null = screenStream;
+    let cam: MediaStream | null = cameraStream;
+    if (sourceType !== "camera" && !scr) scr = await acquireScreen();
+    if (sourceType !== "screen" && !cam) cam = await acquireCamera();
+    if (!scr && !cam) return;
+
+    // Give the video elements a moment to produce frames for the compositor
+    await new Promise((r) => setTimeout(r, 400));
+    const stream = buildCompositeStream(scr, cam);
+
     if (micEnabled && sourceType !== "camera") {
       try {
         const micConstraints: MediaTrackConstraints = {};
@@ -278,16 +264,17 @@ const Studio = () => {
         }
         const mic = await navigator.mediaDevices.getUserMedia({ audio: micConstraints.deviceId ? micConstraints : true });
         setMicStream(mic);
-        mic.getAudioTracks().forEach((t) => stream!.addTrack(t));
+        mic.getAudioTracks().forEach((t) => stream.addTrack(t));
       } catch { /* mic denied */ }
     }
+
     for (let i = 3; i >= 1; i--) {
       setCountdown(i);
       await new Promise((r) => setTimeout(r, 1000));
     }
     setCountdown(null);
     startRecording(stream);
-  }, [sourceType, micEnabled, acquireScreen, acquireCamera, buildCompositeStream, startRecording, deviceSelection]);
+  }, [sourceType, micEnabled, screenStream, cameraStream, acquireScreen, acquireCamera, buildCompositeStream, startRecording, deviceSelection]);
 
   /* ---- Download ---- */
   const handleDownload = useCallback((type: "original" | "edited" = "original") => {
