@@ -364,6 +364,48 @@ const Studio = () => {
     resetRecording();
   };
 
+  /* ---- Auto camera preview while idle ---- */
+  useEffect(() => {
+    if (state !== "idle" || studioMode !== "record") return;
+    if (sourceType === "screen" || cameraStream) return;
+    let cancelled = false;
+    (async () => {
+      const cam = await acquireCamera();
+      if (cancelled) cam?.getTracks().forEach((t) => t.stop());
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, studioMode, sourceType]);
+
+  /* ---- Instant replay clip ---- */
+  const handleSaveClip = useCallback((seconds = 30) => {
+    const blob = getReplayClip(seconds);
+    if (!blob) {
+      toast({ title: "Nothing buffered yet", description: "Record for a few seconds first." });
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clip-${Date.now()}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Clip saved", description: `Last ${seconds}s exported.` });
+  }, [getReplayClip]);
+
+  /* ---- Studio mode transition ---- */
+  const handleTransition = useCallback(() => {
+    if (previewSceneId === activeSceneId) return;
+    setTransitioning(true);
+    const delay = transitionKind === "cut" ? 0 : transitionMs;
+    window.setTimeout(() => {
+      const outgoing = activeSceneId;
+      setActiveSceneId(previewSceneId);
+      setPreviewSceneId(outgoing);
+      setTransitioning(false);
+    }, delay);
+  }, [previewSceneId, activeSceneId, transitionKind, transitionMs]);
+
   const handleSkipStart = useCallback(() => {
     setSkipRegions((prev) => [...prev, { startMs: duration, endMs: null }]);
     setIsMarkingSkip(true);
@@ -386,6 +428,19 @@ const Studio = () => {
   const handleTrimConfirm = useCallback(async (keepRegions: { startMs: number; endMs: number }[]) => {
     setShowTrimmer(false);
   }, []);
+
+  const { bindings, setBinding, resetBindings } = useHotkeys({
+    toggleRecord: () => { if (state === "idle") handleStart(); else if (state === "recording" || state === "paused") stopRecording(); },
+    pauseResume: () => { if (state === "recording") pauseRecording(); else if (state === "paused") resumeRecording(); },
+    toggleStream: () => setIsStreaming((v) => !v),
+    muteMic: () => (state === "idle" ? setMicEnabled((v) => !v) : toggleMicMidRecording()),
+    transition: handleTransition,
+    scene1: () => scenes[0] && setActiveSceneId(scenes[0].id),
+    scene2: () => scenes[1] && setActiveSceneId(scenes[1].id),
+    scene3: () => scenes[2] && setActiveSceneId(scenes[2].id),
+    scene4: () => scenes[3] && setActiveSceneId(scenes[3].id),
+    scene5: () => scenes[4] && setActiveSceneId(scenes[4].id),
+  }, !editingMode);
 
   return (
     <div className="bg-background text-foreground min-h-screen overflow-x-hidden flex flex-col">
@@ -480,6 +535,17 @@ const Studio = () => {
                 {showDock ? <ChevronDown size={10} /> : <ChevronUp size={10} />}
                 Docks
               </Button>
+              <Button
+                variant={studioModeOn ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1 text-[10px] h-7 px-2"
+                onClick={() => setStudioModeOn(!studioModeOn)}
+              >
+                <Zap size={10} /> Studio Mode
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1 text-[10px] h-7 px-2" onClick={() => setHotkeysOpen(true)}>
+                <Keyboard size={10} /> Hotkeys
+              </Button>
               {studioMode === "stream" && (
                 <Button
                   variant={showChat ? "secondary" : "ghost"}
@@ -516,6 +582,22 @@ const Studio = () => {
                 currentStep={
                   isRecording || isPaused ? "recording" : editingMode ? "editing" : showTrimmer ? "trimming" : exportedBlob ? "done" : "editing"
                 }
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Stream / recording telemetry */}
+        {(isRecording || isPaused || isStreaming) && (
+          <div className="px-4 pt-2">
+            <div className="max-w-[1600px] mx-auto">
+              <StreamHealthBar
+                active={isRecording || isStreaming}
+                fps={fps}
+                targetFps={recordingQuality.fps}
+                bytes={bytesRecorded}
+                durationMs={duration}
+                label={isStreaming ? "Uptime" : "Session"}
               />
             </div>
           </div>
@@ -602,7 +684,6 @@ const Studio = () => {
                   {/* Hidden helpers */}
                   <video ref={screenVideoRef} autoPlay muted playsInline className="hidden" />
                   <video ref={cameraVideoRef} autoPlay muted playsInline className="hidden" />
-                  <canvas ref={canvasRef} className="hidden" />
 
                   {/* Countdown */}
                   {countdown !== null && (
@@ -618,20 +699,30 @@ const Studio = () => {
                     </motion.div>
                   )}
 
-                  {/* Idle preview */}
-                  {isIdle && !isStopped && !countdown && studioMode === "record" && (
-                    <div className="absolute inset-0">
-                      {sourceType === "camera" || sourceType === "both" ? (
-                        <SourcePreview
-                          sourceType={sourceType}
-                          videoDeviceId={deviceSelection.videoInputId}
-                          audioDeviceId={deviceSelection.audioInputId}
-                          micEnabled={micEnabled}
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center gap-4 text-muted-foreground h-full">
-                          <Video size={48} className="opacity-30" />
-                          <p className="text-sm">Select a source and hit Record</p>
+                  {/* Live compositor preview */}
+                  {studioMode === "record" && !isStopped && (
+                    <div className="absolute inset-0 p-2">
+                      <Compositor
+                        canvasRef={canvasRef}
+                        screenVideoRef={screenVideoRef}
+                        cameraVideoRef={cameraVideoRef}
+                        hasScreen={sourceType !== "camera"}
+                        hasCamera={sourceType !== "screen"}
+                        layout={layout}
+                        onLayoutChange={setLayout}
+                        width={RESOLUTIONS[recordingQuality.resolution].width}
+                        height={RESOLUTIONS[recordingQuality.resolution].height}
+                        interactive={isIdle}
+                        onFps={setFps}
+                      />
+                      {isIdle && sourceType !== "camera" && !screenStream && (
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 pointer-events-none">
+                          <Monitor size={40} className="opacity-30" />
+                          <div className="pointer-events-auto">
+                            <Button size="sm" variant="secondary" className="gap-2" onClick={acquireScreen}>
+                              <Monitor size={14} /> Add screen to preview
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -647,7 +738,7 @@ const Studio = () => {
 
                   {/* Recording indicator */}
                   {(isRecording || isPaused) && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <div className="absolute top-2 left-2 flex flex-col gap-1 bg-background/70 backdrop-blur-sm rounded-md px-2 py-1 pointer-events-none">
                       <div className="flex items-center gap-2">
                         <span className={`inline-block w-3 h-3 rounded-full ${isRecording ? "bg-destructive animate-pulse" : "bg-muted-foreground"}`} />
                         <span className="text-sm font-semibold">{isRecording ? "Recording" : "Paused"}</span>
@@ -711,6 +802,9 @@ const Studio = () => {
                         isMarking={isMarkingSkip}
                         canUndo={isMarkingSkip || skipRegions.length > 0}
                       />
+                      <Button variant="secondary" size="lg" className="gap-2" onClick={() => handleSaveClip(30)}>
+                        <Film size={18} /> Save Clip (30s)
+                      </Button>
                     </motion.div>
                   )}
 
@@ -810,6 +904,24 @@ const Studio = () => {
                     />
                   </div>
 
+                  {/* Studio Mode deck */}
+                  {studioModeOn && (
+                    <div className="md:col-span-2 bg-muted/20 rounded-lg border border-border p-3">
+                      <StudioModeDeck
+                        scenes={scenes}
+                        previewSceneId={previewSceneId}
+                        programSceneId={activeSceneId}
+                        onPreviewChange={setPreviewSceneId}
+                        transition={transitionKind}
+                        onTransitionChange={setTransitionKind}
+                        durationMs={transitionMs}
+                        onDurationChange={setTransitionMs}
+                        onTransition={handleTransition}
+                        transitioning={transitioning}
+                      />
+                    </div>
+                  )}
+
                   {/* Audio Mixer */}
                   <div className="bg-muted/20 rounded-lg border border-border p-3">
                     <AudioMixer channels={audioChannels} onChannelChange={handleAudioChannelChange} />
@@ -820,6 +932,14 @@ const Studio = () => {
           )}
         </AnimatePresence>
       </main>
+
+      <HotkeysPanel
+        open={hotkeysOpen}
+        onOpenChange={setHotkeysOpen}
+        bindings={bindings}
+        onBindingChange={setBinding}
+        onReset={resetBindings}
+      />
 
       <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={saveTitle} />
       <SiteFooter />
