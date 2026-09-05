@@ -7,6 +7,9 @@ interface UseMediaRecorderReturn {
   recordedUrl: string | null;
   recordedBlob: Blob | null;
   duration: number;
+  bytesRecorded: number;
+  /** Builds a playable clip from the last N seconds of the live recording */
+  getReplayClip: (seconds: number) => Blob | null;
   startRecording: (stream: MediaStream) => void;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -19,6 +22,7 @@ export function useMediaRecorder(): UseMediaRecorderReturn {
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [duration, setDuration] = useState(0);
+  const [bytesRecorded, setBytesRecorded] = useState(0);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -46,6 +50,7 @@ export function useMediaRecorder(): UseMediaRecorderReturn {
     chunksRef.current = [];
     elapsedRef.current = 0;
     setDuration(0);
+    setBytesRecorded(0);
 
     const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
       ? "video/webm;codecs=vp9,opus"
@@ -53,7 +58,10 @@ export function useMediaRecorder(): UseMediaRecorderReturn {
 
     const recorder = new MediaRecorder(stream, { mimeType });
     recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data);
+      if (e.data.size > 0) {
+        chunksRef.current.push(e.data);
+        setBytesRecorded((b) => b + e.data.size);
+      }
     };
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType });
@@ -86,11 +94,21 @@ export function useMediaRecorder(): UseMediaRecorderReturn {
     stopTimer();
   }, [stopTimer]);
 
+  /** Header chunk + the most recent `seconds` of chunks (1s timeslices) */
+  const getReplayClip = useCallback((seconds: number): Blob | null => {
+    const chunks = chunksRef.current;
+    if (chunks.length === 0) return null;
+    const tail = chunks.slice(Math.max(1, chunks.length - seconds));
+    const parts = chunks.length > 1 ? [chunks[0], ...tail] : [chunks[0]];
+    return new Blob(parts, { type: chunks[0].type || "video/webm" });
+  }, []);
+
   const resetRecording = useCallback(() => {
     if (recordedUrl) URL.revokeObjectURL(recordedUrl);
     setRecordedUrl(null);
     setRecordedBlob(null);
     setDuration(0);
+    setBytesRecorded(0);
     elapsedRef.current = 0;
     setState("idle");
   }, [recordedUrl]);
@@ -100,6 +118,8 @@ export function useMediaRecorder(): UseMediaRecorderReturn {
     recordedUrl,
     recordedBlob,
     duration,
+    bytesRecorded,
+    getReplayClip,
     startRecording,
     pauseRecording,
     resumeRecording,
