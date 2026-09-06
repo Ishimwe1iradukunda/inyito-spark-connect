@@ -29,7 +29,7 @@ import HotkeysPanel from "@/components/studio/HotkeysPanel";
 import PreflightChecklist from "@/components/studio/PreflightChecklist";
 import OverlayPanel, { DEFAULT_OVERLAYS, type OverlayState } from "@/components/studio/OverlayPanel";
 import { useHotkeys } from "@/hooks/useHotkeys";
-import { type StreamConfig } from "@/hooks/useStreamConfig";
+import { useStreamConfig, type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
   Camera,
@@ -142,7 +142,8 @@ const Studio = () => {
   const [transitioning, setTransitioning] = useState(false);
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [showOverlays, setShowOverlays] = useState(false);
-  const [streamKeyReady, setStreamKeyReady] = useState(false);
+  const { configs: streamConfigs } = useStreamConfig();
+  const streamKeyReady = streamConfigs.some((c) => c.stream_url && c.stream_key);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -640,7 +641,7 @@ const Studio = () => {
                 <div className="max-w-5xl mx-auto space-y-4">
                   <PreflightChecklist
                     hasStreamKey={streamKeyReady}
-                    destinationCount={streamKeyReady ? 1 : 0}
+                    destinationCount={streamConfigs.filter((c) => c.stream_url && c.stream_key).length}
                     micStream={micStream}
                   />
                   <LiveStreamPanel
