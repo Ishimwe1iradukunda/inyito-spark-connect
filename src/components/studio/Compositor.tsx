@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Grid3X3, CornerDownRight, Maximize } from "lucide-react";
+import type { OverlayState } from "@/components/studio/OverlayPanel";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -42,6 +43,7 @@ interface CompositorProps {
   height: number;
   interactive?: boolean;
   onFps?: (fps: number) => void;
+  overlays?: OverlayState;
 }
 
 type DragMode = { key: "screen" | "camera"; type: "move" | "resize"; startX: number; startY: number; rect: LayoutRect } | null;
@@ -58,6 +60,7 @@ const Compositor = ({
   height,
   interactive = true,
   onFps,
+  overlays,
 }: CompositorProps) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [showGuides, setShowGuides] = useState(true);
@@ -65,6 +68,8 @@ const Compositor = ({
   const dragRef = useRef<DragMode>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+  const overlaysRef = useRef(overlays);
+  overlaysRef.current = overlays;
 
   /* ---------------- Draw loop ---------------- */
   useEffect(() => {
@@ -116,6 +121,102 @@ const Compositor = ({
         ctx.lineWidth = 3;
         roundRect(x, y, w, h, Math.min(24, w * 0.08));
         ctx.stroke();
+      }
+
+      /* ---- Stream overlays ---- */
+      const O = overlaysRef.current;
+      if (O) {
+        const W = canvas.width;
+        const H = canvas.height;
+        const u = H / 720; // scale unit
+
+        if (O.lowerThird.enabled) {
+          const x = 60 * u;
+          const y = H - 190 * u;
+          const w = 520 * u;
+          const h = 96 * u;
+          ctx.save();
+          ctx.fillStyle = "rgba(10,10,18,0.78)";
+          roundRect(x, y, w, h, 10 * u);
+          ctx.fill();
+          ctx.fillStyle = "hsl(213,94%,54%)";
+          ctx.fillRect(x, y, 6 * u, h);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `bold ${28 * u}px system-ui, sans-serif`;
+          ctx.fillText(O.lowerThird.title, x + 24 * u, y + 42 * u);
+          ctx.fillStyle = "rgba(255,255,255,0.72)";
+          ctx.font = `${18 * u}px system-ui, sans-serif`;
+          ctx.fillText(O.lowerThird.subtitle, x + 24 * u, y + 72 * u);
+          ctx.restore();
+        }
+
+        if (O.viewers.enabled) {
+          const label = `${O.viewers.count.toLocaleString()} watching`;
+          ctx.save();
+          ctx.font = `bold ${18 * u}px system-ui, sans-serif`;
+          const tw = ctx.measureText(label).width;
+          const w = tw + 56 * u;
+          const x = W - w - 40 * u;
+          const y = 36 * u;
+          ctx.fillStyle = "rgba(10,10,18,0.75)";
+          roundRect(x, y, w, 38 * u, 19 * u);
+          ctx.fill();
+          ctx.fillStyle = "#ef4444";
+          ctx.beginPath();
+          ctx.arc(x + 22 * u, y + 19 * u, 7 * u, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(label, x + 38 * u, y + 25 * u);
+          ctx.restore();
+        }
+
+        if (O.ticker.enabled && O.ticker.text) {
+          const h = 46 * u;
+          const y = H - h;
+          ctx.save();
+          ctx.fillStyle = "rgba(10,10,18,0.85)";
+          ctx.fillRect(0, y, W, h);
+          ctx.fillStyle = "hsl(213,94%,54%)";
+          ctx.fillRect(0, y, W, 3 * u);
+          ctx.font = `${20 * u}px system-ui, sans-serif`;
+          ctx.fillStyle = "#ffffff";
+          const text = `${O.ticker.text}     •     `;
+          const tw = ctx.measureText(text).width;
+          const offset = ((performance.now() / 22) % tw);
+          for (let i = -1; i * tw < W + tw; i++) {
+            ctx.fillText(text, i * tw - offset, y + 30 * u);
+          }
+          ctx.restore();
+        }
+
+        if (O.countdown.enabled && O.countdown.startedAt) {
+          const left = Math.max(0, O.countdown.seconds - Math.floor((Date.now() - O.countdown.startedAt) / 1000));
+          const mm = String(Math.floor(left / 60)).padStart(2, "0");
+          const ss = String(left % 60).padStart(2, "0");
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.font = `bold ${24 * u}px system-ui, sans-serif`;
+          ctx.fillText(O.countdown.label, W / 2, H / 2 - 50 * u);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `bold ${86 * u}px system-ui, sans-serif`;
+          ctx.fillText(`${mm}:${ss}`, W / 2, H / 2 + 40 * u);
+          ctx.restore();
+        }
+
+        if (O.brb.enabled) {
+          ctx.save();
+          ctx.fillStyle = "rgba(6,6,12,0.92)";
+          ctx.fillRect(0, 0, W, H);
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `bold ${64 * u}px system-ui, sans-serif`;
+          ctx.fillText(O.brb.message, W / 2, H / 2);
+          ctx.fillStyle = "rgba(255,255,255,0.6)";
+          ctx.font = `${22 * u}px system-ui, sans-serif`;
+          ctx.fillText("Stay tuned — we'll be back shortly", W / 2, H / 2 + 48 * u);
+          ctx.restore();
+        }
       }
 
       frames++;
