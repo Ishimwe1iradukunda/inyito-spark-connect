@@ -26,6 +26,7 @@ import Compositor, { DEFAULT_LAYOUT, type CompositorLayout } from "@/components/
 import StreamHealthBar from "@/components/studio/StreamHealthBar";
 import StudioModeDeck, { type TransitionKind } from "@/components/studio/StudioModeDeck";
 import HotkeysPanel from "@/components/studio/HotkeysPanel";
+import PreflightChecklist from "@/components/studio/PreflightChecklist";
 import OverlayPanel, { DEFAULT_OVERLAYS, type OverlayState } from "@/components/studio/OverlayPanel";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import { type StreamConfig } from "@/hooks/useStreamConfig";
@@ -141,6 +142,7 @@ const Studio = () => {
   const [transitioning, setTransitioning] = useState(false);
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [showOverlays, setShowOverlays] = useState(false);
+  const [streamKeyReady, setStreamKeyReady] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -635,7 +637,12 @@ const Studio = () => {
             {/* Stream Panel */}
             {studioMode === "stream" && (
               <div className="px-4 py-4 overflow-y-auto">
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-5xl mx-auto space-y-4">
+                  <PreflightChecklist
+                    hasStreamKey={streamKeyReady}
+                    destinationCount={streamKeyReady ? 1 : 0}
+                    micStream={micStream}
+                  />
                   <LiveStreamPanel
                     isStreaming={isStreaming}
                     onGoLive={(config: StreamConfig) => {
