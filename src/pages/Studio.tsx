@@ -26,8 +26,10 @@ import Compositor, { DEFAULT_LAYOUT, type CompositorLayout } from "@/components/
 import StreamHealthBar from "@/components/studio/StreamHealthBar";
 import StudioModeDeck, { type TransitionKind } from "@/components/studio/StudioModeDeck";
 import HotkeysPanel from "@/components/studio/HotkeysPanel";
+import PreflightChecklist from "@/components/studio/PreflightChecklist";
+import OverlayPanel, { DEFAULT_OVERLAYS, type OverlayState } from "@/components/studio/OverlayPanel";
 import { useHotkeys } from "@/hooks/useHotkeys";
-import { type StreamConfig } from "@/hooks/useStreamConfig";
+import { useStreamConfig, type StreamConfig } from "@/hooks/useStreamConfig";
 import {
   Monitor,
   Camera,
@@ -138,6 +140,10 @@ const Studio = () => {
   const [transitionKind, setTransitionKind] = useState<TransitionKind>("fade");
   const [transitionMs, setTransitionMs] = useState(300);
   const [transitioning, setTransitioning] = useState(false);
+  const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
+  const [showOverlays, setShowOverlays] = useState(false);
+  const { configs: streamConfigs } = useStreamConfig();
+  const streamKeyReady = streamConfigs.some((c) => c.stream_url && c.stream_key);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -542,6 +548,14 @@ const Studio = () => {
               >
                 <Zap size={10} /> Studio Mode
               </Button>
+              <Button
+                variant={showOverlays ? "secondary" : "ghost"}
+                size="sm"
+                className="gap-1 text-[10px] h-7 px-2"
+                onClick={() => setShowOverlays(!showOverlays)}
+              >
+                <Layers size={10} /> Overlays
+              </Button>
               <Button variant="ghost" size="sm" className="gap-1 text-[10px] h-7 px-2" onClick={() => setHotkeysOpen(true)}>
                 <Keyboard size={10} /> Hotkeys
               </Button>
@@ -624,7 +638,12 @@ const Studio = () => {
             {/* Stream Panel */}
             {studioMode === "stream" && (
               <div className="px-4 py-4 overflow-y-auto">
-                <div className="max-w-5xl mx-auto">
+                <div className="max-w-5xl mx-auto space-y-4">
+                  <PreflightChecklist
+                    hasStreamKey={streamKeyReady}
+                    destinationCount={streamConfigs.filter((c) => c.stream_url && c.stream_key).length}
+                    micStream={micStream}
+                  />
                   <LiveStreamPanel
                     isStreaming={isStreaming}
                     onGoLive={(config: StreamConfig) => {
@@ -713,6 +732,7 @@ const Studio = () => {
                         height={RESOLUTIONS[recordingQuality.resolution].height}
                         interactive={isIdle}
                         onFps={setFps}
+                        overlays={overlays}
                       />
                       {isIdle && sourceType !== "camera" && !screenStream && (
                         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 pointer-events-none">
@@ -918,6 +938,13 @@ const Studio = () => {
                         onTransition={handleTransition}
                         transitioning={transitioning}
                       />
+                    </div>
+                  )}
+
+                  {/* Overlays */}
+                  {showOverlays && (
+                    <div className="bg-muted/20 rounded-lg border border-border p-3 max-h-[320px] overflow-y-auto">
+                      <OverlayPanel overlays={overlays} onChange={setOverlays} />
                     </div>
                   )}
 
