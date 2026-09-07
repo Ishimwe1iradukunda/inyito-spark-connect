@@ -27,6 +27,8 @@ import StreamHealthBar from "@/components/studio/StreamHealthBar";
 import StudioModeDeck, { type TransitionKind } from "@/components/studio/StudioModeDeck";
 import HotkeysPanel from "@/components/studio/HotkeysPanel";
 import PreflightChecklist from "@/components/studio/PreflightChecklist";
+import LiveBroadcastStatus from "@/components/studio/LiveBroadcastStatus";
+import { useLiveBroadcast } from "@/hooks/useLiveBroadcast";
 import OverlayPanel, { DEFAULT_OVERLAYS, type OverlayState } from "@/components/studio/OverlayPanel";
 import { useHotkeys } from "@/hooks/useHotkeys";
 import { useStreamConfig, type StreamConfig } from "@/hooks/useStreamConfig";
@@ -143,6 +145,9 @@ const Studio = () => {
   const [overlays, setOverlays] = useState<OverlayState>(DEFAULT_OVERLAYS);
   const [showOverlays, setShowOverlays] = useState(false);
   const { configs: streamConfigs } = useStreamConfig();
+  const broadcast = useLiveBroadcast();
+  const [liveStartedAt, setLiveStartedAt] = useState<number | null>(null);
+  const [liveUptime, setLiveUptime] = useState(0);
   const streamKeyReady = streamConfigs.some((c) => c.stream_url && c.stream_key);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -319,6 +324,72 @@ const Studio = () => {
     }
   }, [recordedBlob, exportedBlob, user, saveTitle, duration, sourceType, navigate]);
 
+  /* ---- Live broadcast (Cloudflare Stream relay -> YouTube / Twitch / Facebook) ---- */
+  useEffect(() => {
+    if (!liveStartedAt) return;
+    const id = window.setInterval(() => setLiveUptime(Date.now() - liveStartedAt), 1000);
+    return () => window.clearInterval(id);
+  }, [liveStartedAt]);
+
+  const handleGoLive = useCallback(async (config: StreamConfig) => {
+    const destinations = streamConfigs
+      .filter((c) => c.stream_url && c.stream_key)
+      .map((c) => ({ platform: c.platform, url: c.stream_url!, key: c.stream_key! }));
+
+    if (destinations.length === 0) {
+      toast({ title: "No destination ready", description: "Add a server URL and stream key first.", variant: "destructive" });
+      return;
+    }
+
+    let scr: MediaStream | null = screenStream;
+    let cam: MediaStream | null = cameraStream;
+    if (sourceType !== "camera" && !scr) scr = await acquireScreen();
+    if (sourceType !== "screen" && !cam) cam = await acquireCamera();
+    if (!scr && !cam) {
+      toast({ title: "No video source", description: "Share a screen or enable your camera before going live.", variant: "destructive" });
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+    const stream = buildCompositeStream(scr, cam);
+
+    if (micEnabled) {
+      try {
+        const micConstraints: MediaTrackConstraints = {};
+        if (deviceSelection.audioInputId && deviceSelection.audioInputId !== "default") {
+          micConstraints.deviceId = { exact: deviceSelection.audioInputId };
+        }
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: micConstraints.deviceId ? micConstraints : true });
+        setMicStream(mic);
+        mic.getAudioTracks().forEach((t) => stream.addTrack(t));
+      } catch { /* mic denied */ }
+    }
+
+    try {
+      const result = await broadcast.start(stream, config.title || "Live session", destinations);
+      setIsStreaming(true);
+      setStreamPlatform(config.platform);
+      setStreamChannel(config.title);
+      setLiveStartedAt(Date.now());
+      setLiveUptime(0);
+      const failed = (result?.outputs ?? []).filter((o) => !o.ok);
+      toast({
+        title: "You are live!",
+        description: failed.length
+          ? `Relaying to ${(result?.outputs.length ?? 0) - failed.length} destination(s); ${failed.length} failed.`
+          : `Relaying to ${destinations.length} destination(s).`,
+      });
+    } catch (e) {
+      toast({ title: "Could not go live", description: (e as Error).message, variant: "destructive" });
+    }
+  }, [streamConfigs, screenStream, cameraStream, sourceType, acquireScreen, acquireCamera, buildCompositeStream, micEnabled, deviceSelection, broadcast]);
+
+  const handleStopStream = useCallback(async () => {
+    await broadcast.stop();
+    setIsStreaming(false);
+    setLiveStartedAt(null);
+    toast({ title: "Stream ended", description: "The relay was shut down." });
+  }, [broadcast]);
+
   /* ---- Toggle mic ---- */
   const toggleMicMidRecording = useCallback(() => {
     if (micStream) micStream.getAudioTracks().forEach((t) => { t.enabled = !t.enabled; });
@@ -437,7 +508,7 @@ const Studio = () => {
   const { bindings, setBinding, resetBindings } = useHotkeys({
     toggleRecord: () => { if (state === "idle") handleStart(); else if (state === "recording" || state === "paused") stopRecording(); },
     pauseResume: () => { if (state === "recording") pauseRecording(); else if (state === "paused") resumeRecording(); },
-    toggleStream: () => setIsStreaming((v) => !v),
+    toggleStream: () => { if (isStreaming) handleStopStream(); },
     muteMic: () => (state === "idle" ? setMicEnabled((v) => !v) : toggleMicMidRecording()),
     transition: handleTransition,
     scene1: () => scenes[0] && setActiveSceneId(scenes[0].id),
@@ -644,18 +715,19 @@ const Studio = () => {
                     destinationCount={streamConfigs.filter((c) => c.stream_url && c.stream_key).length}
                     micStream={micStream}
                   />
+                  {(isStreaming || broadcast.state === "starting" || broadcast.state === "error") && (
+                    <LiveBroadcastStatus
+                      state={broadcast.state}
+                      stats={broadcast.stats}
+                      error={broadcast.error}
+                      outputs={broadcast.outputs}
+                      uptimeMs={liveUptime}
+                    />
+                  )}
                   <LiveStreamPanel
                     isStreaming={isStreaming}
-                    onGoLive={(config: StreamConfig) => {
-                      setIsStreaming(true);
-                      setStreamPlatform(config.platform);
-                      setStreamChannel(config.title);
-                      toast({ title: "Going live!", description: `Streaming "${config.title}" to ${config.platform}` });
-                    }}
-                    onStopStream={() => {
-                      setIsStreaming(false);
-                      toast({ title: "Stream ended" });
-                    }}
+                    onGoLive={handleGoLive}
+                    onStopStream={handleStopStream}
                   />
                 </div>
               </div>
@@ -718,7 +790,7 @@ const Studio = () => {
                   )}
 
                   {/* Live compositor preview */}
-                  {studioMode === "record" && !isStopped && (
+                  {(studioMode === "record" || studioMode === "stream") && !isStopped && (
                     <div className="absolute inset-0 p-2">
                       <Compositor
                         canvasRef={canvasRef}
@@ -748,7 +820,7 @@ const Studio = () => {
                   )}
 
                   {/* Stream idle preview */}
-                  {studioMode === "stream" && !isStreaming && isIdle && (
+                  {false && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
                       <Radio size={48} className="opacity-30" />
                       <p className="text-sm">Configure destinations and Go Live</p>
