@@ -22,6 +22,7 @@ const NavBar = () => {
   const routeLinks: { label: string; path: string }[] = [
     { label: "Studio", path: "/studio" },
     { label: "Templates", path: "/templates" },
+    { label: "Highlights", path: "/highlights" },
     { label: "Pay", path: "/checkout" },
     ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
   ];
