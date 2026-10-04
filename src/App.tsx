@@ -13,6 +13,7 @@ import Studio from "./pages/Studio";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import MyRecordings from "./pages/MyRecordings";
+import Highlights from "./pages/Highlights";
 import Templates from "./pages/Templates";
 import Profile from "./pages/Profile";
 import Checkout from "./pages/Checkout";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/templates" element={<Templates />} />
+            <Route path="/highlights" element={<ProtectedRoute><Highlights /></ProtectedRoute>} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-failed" element={<PaymentFailed />} />
