@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -182,6 +182,44 @@ export type Database = {
         }
         Relationships: []
       }
+      stream_chat_messages: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_host: boolean
+          message: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_host?: boolean
+          message: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_host?: boolean
+          message?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stream_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stream_configs: {
         Row: {
           backup_url: string | null
@@ -274,7 +312,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_public_session: {
+        Args: { _id: string }
+        Returns: {
+          ended_at: string
+          host_id: string
+          id: string
+          playback_url: string
+          started_at: string
+          status: string
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

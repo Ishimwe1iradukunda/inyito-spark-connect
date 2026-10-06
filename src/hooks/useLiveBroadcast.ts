@@ -52,6 +52,7 @@ export function useLiveBroadcast() {
   const [error, setError] = useState<string | null>(null);
   const [outputs, setOutputs] = useState<{ platform: string; ok: boolean; error?: string }[]>([]);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const resourceRef = useRef<string | null>(null);
@@ -112,6 +113,7 @@ export function useLiveBroadcast() {
         const result = (await invokeLive({ action: "start", title, destinations })) as StartResult;
         sessionRef.current = { sessionId: result.sessionId, liveInputUid: result.liveInputUid };
         setOutputs(result.outputs ?? []);
+        setSessionId(result.sessionId);
         setPlaybackUrl(result.playbackUrl);
         if (!result.whipUrl) throw new Error("The relay did not return an ingest endpoint.");
 
@@ -180,6 +182,7 @@ export function useLiveBroadcast() {
     setStats(EMPTY_STATS);
     setOutputs([]);
     setPlaybackUrl(null);
+    setSessionId(null);
     if (session?.liveInputUid) {
       try {
         await invokeLive({ action: "stop", liveInputUid: session.liveInputUid, sessionId: session.sessionId });
@@ -191,5 +194,5 @@ export function useLiveBroadcast() {
 
   useEffect(() => () => teardownLocal(), [teardownLocal]);
 
-  return { state, stats, error, outputs, playbackUrl, start, stop, isLive: state === "live" || state === "reconnecting" };
+  return { state, stats, error, outputs, playbackUrl, sessionId, start, stop, isLive: state === "live" || state === "reconnecting" };
 }

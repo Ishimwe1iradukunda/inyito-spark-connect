@@ -968,7 +968,7 @@ const Studio = () => {
                 exit={{ width: 0, opacity: 0 }}
                 className="border-l border-border bg-card/50 overflow-hidden flex-shrink-0"
               >
-                <StreamChat platform={streamPlatform} channelName={streamChannel} isStreaming={isStreaming} />
+                <StreamChat platform={streamPlatform} channelName={streamChannel} isStreaming={isStreaming} sessionId={broadcast.sessionId} />
               </motion.div>
             )}
           </AnimatePresence>

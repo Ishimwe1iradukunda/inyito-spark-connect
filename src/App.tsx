@@ -14,6 +14,8 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import MyRecordings from "./pages/MyRecordings";
 import Highlights from "./pages/Highlights";
+import LiveViewer from "./pages/LiveViewer";
+import Broadcasts from "./pages/Broadcasts";
 import Templates from "./pages/Templates";
 import Profile from "./pages/Profile";
 import Checkout from "./pages/Checkout";
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/templates" element={<Templates />} />
+            <Route path="/live/:id" element={<LiveViewer />} />
+            <Route path="/broadcasts" element={<ProtectedRoute><Broadcasts /></ProtectedRoute>} />
             <Route path="/highlights" element={<ProtectedRoute><Highlights /></ProtectedRoute>} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
