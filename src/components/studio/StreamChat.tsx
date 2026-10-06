@@ -3,7 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import SessionChatPanel from "@/components/studio/SessionChatPanel";
+import { toast } from "@/hooks/use-toast";
 import {
+  Link2,
   MessageSquare,
   Send,
   Users,
@@ -31,6 +34,7 @@ interface StreamChatProps {
   platform: string;
   channelName: string;
   isStreaming: boolean;
+  sessionId?: string | null;
 }
 
 const CHAT_COLORS = [
@@ -115,7 +119,40 @@ function useTwitchChat(channel: string, enabled: boolean) {
 /*  Chat Component                                                      */
 /* ------------------------------------------------------------------ */
 
-const StreamChat = ({ platform, channelName, isStreaming }: StreamChatProps) => {
+const StreamChat = (props: StreamChatProps) => {
+  const [tab, setTab] = useState<"live" | "twitch">("live");
+  const shareUrl = props.sessionId ? `${window.location.origin}/live/${props.sessionId}` : "";
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex border-b border-border">
+        {(["live", "twitch"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider ${tab === t ? "text-primary border-b-2 border-primary" : "text-muted-foreground"}`}>
+            {t === "live" ? "Live Chat" : "Twitch IRC"}
+          </button>
+        ))}
+      </div>
+      {tab === "live" ? (
+        <div className="flex flex-1 min-h-0 flex-col">
+          {shareUrl && (
+            <div className="flex items-center gap-1.5 border-b border-border bg-muted/20 px-3 py-1.5">
+              <span className="flex-1 truncate text-[10px] text-muted-foreground">{shareUrl}</span>
+              <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]"
+                onClick={() => { navigator.clipboard.writeText(shareUrl); toast({ title: "Viewer link copied" }); }}>
+                <Link2 size={10} className="mr-1" /> Copy
+              </Button>
+            </div>
+          )}
+          <SessionChatPanel sessionId={props.sessionId} asHost compact />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0"><TwitchChat {...props} /></div>
+      )}
+    </div>
+  );
+};
+
+const TwitchChat = ({ platform, channelName, isStreaming }: StreamChatProps) => {
   const [inputChannel, setInputChannel] = useState(channelName || "");
   const [activeChannel, setActiveChannel] = useState("");
   const [showSettings, setShowSettings] = useState(!channelName);
