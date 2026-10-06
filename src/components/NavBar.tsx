@@ -23,6 +23,7 @@ const NavBar = () => {
     { label: "Studio", path: "/studio" },
     { label: "Templates", path: "/templates" },
     { label: "Highlights", path: "/highlights" },
+    { label: "Broadcasts", path: "/broadcasts" },
     { label: "Pay", path: "/checkout" },
     ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
   ];
