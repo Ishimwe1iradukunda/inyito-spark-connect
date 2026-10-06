@@ -324,8 +324,6 @@ export type Database = {
           title: string
         }[]
       }
-      is_session_host: { Args: { _id: string; _uid: string }; Returns: boolean }
-      session_chat_open: { Args: { _id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
