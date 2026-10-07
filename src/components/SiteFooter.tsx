@@ -24,7 +24,6 @@ const FOOTER_LINKS = [
   { label: "Community", href: "/#community" },
   { label: "Studio", href: "/studio" },
   { label: "Templates", href: "/templates" },
-  { label: "Pay Now", href: "/checkout" },
 ];
 
 const SiteFooter = () => {
