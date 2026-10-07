@@ -192,14 +192,6 @@ const CTASection = () => {
             Learn More
           </Button>
 
-          <Button
-            size="lg"
-            className="rounded-full px-8 py-4 text-base font-semibold gap-2"
-            onClick={() => navigate("/checkout")}
-          >
-            <CreditCard size={18} />
-            Pay Now
-          </Button>
         </motion.div>
 
         {/* Brand color dots */}

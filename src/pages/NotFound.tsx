@@ -9,7 +9,6 @@ const SUGGESTIONS = [
   { to: "/", label: "Home" },
   { to: "/studio", label: "Studio" },
   { to: "/templates", label: "Templates" },
-  { to: "/checkout", label: "Pay Now" },
 ];
 
 const NotFound = () => {

@@ -24,7 +24,6 @@ const NavBar = () => {
     { label: "Templates", path: "/templates" },
     { label: "Highlights", path: "/highlights" },
     { label: "Broadcasts", path: "/broadcasts" },
-    { label: "Pay", path: "/checkout" },
     ...(user ? [{ label: "My Recordings", path: "/my-recordings" }] : []),
   ];
 
@@ -110,10 +109,6 @@ const NavBar = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-2 font-semibold" onClick={() => navigate("/checkout")}>
-              <CreditCard size={14} />
-              Pay Now
-            </Button>
             {user ? (
               <>
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/profile")}>
@@ -156,9 +151,6 @@ const NavBar = () => {
                 {label}
               </a>
             ))}
-            <Button variant="outline" className="w-full mt-3 gap-2 font-semibold" onClick={() => { navigate("/checkout"); setMenuOpen(false); }}>
-              <CreditCard size={14} /> Pay Now
-            </Button>
             {user ? (
               <Button variant="ghost" className="w-full mt-3 gap-2" onClick={() => { signOut(); setMenuOpen(false); }}>
                 <LogOut size={14} /> Sign Out
