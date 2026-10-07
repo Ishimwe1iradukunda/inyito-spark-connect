@@ -5,7 +5,7 @@ import NavBar from "@/components/NavBar";
 import SessionChatPanel from "@/components/studio/SessionChatPanel";
 import { supabase } from "@/integrations/supabase/client";
 
-interface PublicSession { id: string; title: string; status: string; playback_url: string | null; started_at: string; ended_at: string | null }
+interface PublicSession { id: string; title: string; status: string; started_at: string; ended_at: string | null }
 
 const LiveViewer = () => {
   const { id } = useParams();
@@ -14,8 +14,8 @@ const LiveViewer = () => {
 
   useEffect(() => {
     if (!id) return;
-    const load = () => (supabase as any).rpc("get_public_session", { _id: id })
-      .then(({ data }: { data: PublicSession[] | null }) => { setSession(data?.[0] ?? null); setLoading(false); });
+    const load = () => (supabase as any).from("public_broadcasts").select("id,title,status,started_at,ended_at").eq("id", id).maybeSingle()
+      .then(({ data }: { data: PublicSession | null }) => { setSession(data ?? null); setLoading(false); });
     load();
     const t = window.setInterval(load, 15000);
     return () => window.clearInterval(t);
