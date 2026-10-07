@@ -137,6 +137,41 @@ export type Database = {
         }
         Relationships: []
       }
+      public_broadcasts: {
+        Row: {
+          ended_at: string | null
+          host_id: string
+          id: string
+          started_at: string
+          status: string
+          title: string
+        }
+        Insert: {
+          ended_at?: string | null
+          host_id: string
+          id: string
+          started_at: string
+          status: string
+          title: string
+        }
+        Update: {
+          ended_at?: string | null
+          host_id?: string
+          id?: string
+          started_at?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_broadcasts_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recordings: {
         Row: {
           created_at: string
@@ -312,18 +347,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_public_session: {
-        Args: { _id: string }
-        Returns: {
-          ended_at: string
-          host_id: string
-          id: string
-          playback_url: string
-          started_at: string
-          status: string
-          title: string
-        }[]
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
