@@ -8,6 +8,7 @@ import LifeAspectsShowcase from "@/components/scenes/LifeAspectsShowcase";
 import StatsSection from "@/components/StatsSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import CTASection from "@/components/CTASection";
+import QuickStart from "@/components/QuickStart";
 import SiteFooter from "@/components/SiteFooter";
 import CinemaMode from "@/components/CinemaMode";
 import { motion } from "framer-motion";
@@ -71,6 +72,7 @@ const Index = () => {
 
       <main>
         <LogoReveal />
+        <QuickStart />
         <GlobalConnectionWeb />
         <StatsSection />
         <MultiGenerationMontage />
