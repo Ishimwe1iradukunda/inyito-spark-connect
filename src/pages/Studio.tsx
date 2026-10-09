@@ -96,7 +96,7 @@ const DEFAULT_SCENES: Scene[] = [
 
 const Studio = () => {
   /* Studio mode */
-  const [studioMode, setStudioMode] = useState<StudioMode>("record");
+  const [studioMode, setStudioMode] = useState<StudioMode>(() => (new URLSearchParams(window.location.search).get("mode") === "stream" ? "stream" : "record"));
   const [isStreaming, setIsStreaming] = useState(false);
 
   /* OBS-like state */
