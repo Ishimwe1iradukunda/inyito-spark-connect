@@ -226,10 +226,22 @@ const Compositor = ({
         frames = 0;
         last = now;
       }
-      raf = requestAnimationFrame(draw);
+      (window as any).__compositorLastDraw = now;
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    // Drive drawing from a Web Worker timer: unlike requestAnimationFrame it keeps
+    // ticking when this tab is in the background (e.g. while sharing another window).
+    const fps = 30;
+    const workerSrc = `let id=setInterval(()=>postMessage(0),${Math.round(1000 / fps)});onmessage=()=>clearInterval(id);`;
+    let worker: Worker | null = null;
+    try {
+      worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" })));
+      worker.onmessage = () => draw();
+    } catch {
+      const loop = () => { draw(); raf = requestAnimationFrame(loop); };
+      raf = requestAnimationFrame(loop);
+    }
+    void raf;
+    return () => { worker?.postMessage("stop"); worker?.terminate(); cancelAnimationFrame(raf); };
   }, [canvasRef, screenVideoRef, cameraVideoRef, width, height, onFps]);
 
   /* ---------------- Pointer interaction ---------------- */
