@@ -157,6 +157,9 @@ const Studio = () => {
   const cameraVideoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const overlaysRef = useRef<OverlayState>(DEFAULT_OVERLAYS);
+  const layoutRef = useRef<CompositorLayout>(DEFAULT_LAYOUT);
 
   /* Recorder */
   const {
@@ -205,7 +208,7 @@ const Studio = () => {
         audio: systemAudioEnabled,
       });
       setScreenStream(stream);
-      if (screenVideoRef.current) screenVideoRef.current.srcObject = stream;
+      if (screenVideoRef.current) { screenVideoRef.current.srcObject = stream; screenVideoRef.current.play().catch(() => undefined); }
       return stream;
     } catch {
       console.error("Screen capture denied");
@@ -227,7 +230,7 @@ const Studio = () => {
         : false;
       const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints });
       setCameraStream(stream);
-      if (cameraVideoRef.current) cameraVideoRef.current.srcObject = stream;
+      if (cameraVideoRef.current) { cameraVideoRef.current.srcObject = stream; cameraVideoRef.current.play().catch(() => undefined); }
       return stream;
     } catch {
       console.error("Camera access denied");
@@ -238,9 +241,16 @@ const Studio = () => {
   /* ---- Composite stream (from the live compositor canvas) ---- */
   const buildCompositeStream = useCallback(
     (screen: MediaStream | null, cam: MediaStream | null): MediaStream => {
-      const canvas = canvasRef.current!;
-      const canvasStream = canvas.captureStream(recordingQuality.fps);
+      const overlaysOn = Object.values(overlaysRef.current).some((o) => o.enabled);
+      const layoutDefault = JSON.stringify(layoutRef.current.screen) === JSON.stringify(DEFAULT_LAYOUT.screen);
+      const directScreen = screen && !cam && sourceType === "screen" && !overlaysOn && layoutDefault;
+      // Screen-only with no overlays: record the screen track directly (most reliable).
+      const canvasStream = directScreen
+        ? new MediaStream(screen.getVideoTracks())
+        : canvasRef.current!.captureStream(recordingQuality.fps);
+      audioCtxRef.current?.close().catch(() => undefined);
       const audioCtx = new AudioContext();
+      audioCtxRef.current = audioCtx;
       const dest = audioCtx.createMediaStreamDestination();
       [screen, cam].forEach((s) => {
         s?.getAudioTracks().forEach((track) => {
@@ -251,7 +261,7 @@ const Studio = () => {
       dest.stream.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
       return canvasStream;
     },
-    [recordingQuality]
+    [recordingQuality, sourceType]
   );
 
   /* ---- Start recording ---- */
@@ -262,8 +272,11 @@ const Studio = () => {
     if (sourceType !== "screen" && !cam) cam = await acquireCamera();
     if (!scr && !cam) return;
 
-    // Give the video elements a moment to produce frames for the compositor
-    await new Promise((r) => setTimeout(r, 400));
+    // Wait until the helper video players actually have frames
+    const ready = (v: HTMLVideoElement | null) => !v || !v.srcObject || v.readyState >= 2
+      ? Promise.resolve()
+      : new Promise<void>((r) => { v.addEventListener("loadeddata", () => r(), { once: true }); setTimeout(r, 3000); });
+    await Promise.all([ready(scr ? screenVideoRef.current : null), ready(cam ? cameraVideoRef.current : null)]);
     const stream = buildCompositeStream(scr, cam);
 
     if (micEnabled && sourceType !== "camera") {
@@ -396,16 +409,34 @@ const Studio = () => {
     setMicEnabled((v) => !v);
   }, [micStream]);
 
-  useEffect(() => {
-    return () => {
-      screenStream?.getTracks().forEach((t) => t.stop());
-      cameraStream?.getTracks().forEach((t) => t.stop());
-      micStream?.getTracks().forEach((t) => t.stop());
-    };
-  }, [screenStream, cameraStream, micStream]);
+  // Stop each stream only when it is replaced or on unmount. (Previously one shared
+  // cleanup stopped ALL streams whenever ANY changed — e.g. enabling the mic at
+  // record start killed the screen/camera feeds, producing black recordings.)
+  useEffect(() => () => screenStream?.getTracks().forEach((t) => t.stop()), [screenStream]);
+  useEffect(() => () => cameraStream?.getTracks().forEach((t) => t.stop()), [cameraStream]);
+  useEffect(() => () => micStream?.getTracks().forEach((t) => t.stop()), [micStream]);
 
   const isIdle = state === "idle";
   const isRecording = state === "recording";
+  overlaysRef.current = overlays;
+  layoutRef.current = layout;
+
+  // Warn if the compositor stops producing frames while recording; release audio when done
+  useEffect(() => {
+    if (state === "stopped" || state === "idle") { audioCtxRef.current?.close().catch(() => undefined); audioCtxRef.current = null; return; }
+    if (state !== "recording") return;
+    let warned = false;
+    const id = window.setInterval(() => {
+      const last = (window as any).__compositorLastDraw as number | undefined;
+      const usingCanvas = !(sourceType === "screen" && !Object.values(overlaysRef.current).some((o) => o.enabled));
+      if (usingCanvas && last && performance.now() - last > 2000 && !warned) {
+        warned = true;
+        toast({ title: "Recording isn't receiving video", description: "Keep this tab open or reshare your screen.", variant: "destructive" });
+      }
+      if (last && performance.now() - last < 2000) warned = false;
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [state, sourceType]);
   const isPaused = state === "paused";
   const isStopped = state === "stopped";
 
@@ -772,8 +803,8 @@ const Studio = () => {
               <div className="flex-1 flex items-center justify-center p-4">
                 <div className="relative w-full max-w-[1200px] aspect-video rounded-xl overflow-hidden border border-border bg-card">
                   {/* Hidden helpers */}
-                  <video ref={screenVideoRef} autoPlay muted playsInline className="hidden" />
-                  <video ref={cameraVideoRef} autoPlay muted playsInline className="hidden" />
+                  <video ref={screenVideoRef} autoPlay muted playsInline style={{ position: "absolute", width: 2, height: 2, opacity: 0, pointerEvents: "none", left: 0, top: 0 }} />
+                  <video ref={cameraVideoRef} autoPlay muted playsInline style={{ position: "absolute", width: 2, height: 2, opacity: 0, pointerEvents: "none", left: 0, top: 0 }} />
 
                   {/* Countdown */}
                   {countdown !== null && (
