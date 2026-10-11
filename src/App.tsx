@@ -16,6 +16,7 @@ import MyRecordings from "./pages/MyRecordings";
 import Highlights from "./pages/Highlights";
 import LiveViewer from "./pages/LiveViewer";
 import Broadcasts from "./pages/Broadcasts";
+import LiveDashboard from "./pages/LiveDashboard";
 import Templates from "./pages/Templates";
 import Profile from "./pages/Profile";
 import Checkout from "./pages/Checkout";
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/templates" element={<Templates />} />
             <Route path="/live/:id" element={<LiveViewer />} />
             <Route path="/broadcasts" element={<ProtectedRoute><Broadcasts /></ProtectedRoute>} />
+            <Route path="/live-dashboard" element={<ProtectedRoute><LiveDashboard /></ProtectedRoute>} />
             <Route path="/highlights" element={<ProtectedRoute><Highlights /></ProtectedRoute>} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
