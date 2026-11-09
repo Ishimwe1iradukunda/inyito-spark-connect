@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS youtube_channel text, ADD COLUMN IF NOT EXISTS twitch_channel text;

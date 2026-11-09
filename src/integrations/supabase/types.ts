@@ -116,24 +116,30 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          twitch_channel: string | null
           updated_at: string
           user_id: string
+          youtube_channel: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          twitch_channel?: string | null
           updated_at?: string
           user_id: string
+          youtube_channel?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          twitch_channel?: string | null
           updated_at?: string
           user_id?: string
+          youtube_channel?: string | null
         }
         Relationships: []
       }

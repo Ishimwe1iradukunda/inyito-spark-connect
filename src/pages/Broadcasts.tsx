@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { youtubeWatchUrl, twitchWatchUrl } from "@/lib/platformLinks";
 
 type Period = "today" | "week" | "month" | "year" | "all" | "custom";
 interface Session { id: string; title: string; status: string; started_at: string; ended_at: string | null; destinations: any }
@@ -60,6 +62,24 @@ const Broadcasts = () => {
     });
   }, [user, period, from, to]);
 
+  const [yt, setYt] = useState("");
+  const [tw, setTw] = useState("");
+  const [savingLinks, setSavingLinks] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    (supabase as any).from("profiles").select("youtube_channel,twitch_channel").eq("user_id", user.id).maybeSingle()
+      .then(({ data }: any) => { setYt(data?.youtube_channel ?? ""); setTw(data?.twitch_channel ?? ""); });
+  }, [user]);
+  const saveLinks = async () => {
+    if (!user) return;
+    setSavingLinks(true);
+    const { error } = await (supabase as any).from("profiles").update({ youtube_channel: yt.trim() || null, twitch_channel: tw.trim() || null }).eq("user_id", user.id);
+    setSavingLinks(false);
+    error ? toast.error("Couldn't save channel links") : toast.success("Channel links saved");
+  };
+  const ytUrl = youtubeWatchUrl(yt);
+  const twUrl = twitchWatchUrl(tw);
+
   const lengthOf = (s: Session) => (s.ended_at ? new Date(s.ended_at).getTime() : s.status === "ended" ? new Date(s.started_at).getTime() : Date.now()) - new Date(s.started_at).getTime();
 
   const stats = useMemo(() => {
@@ -85,6 +105,16 @@ const Broadcasts = () => {
       <main className="mx-auto max-w-5xl px-4 pt-28 pb-16">
         <h1 className="flex items-center gap-3 text-3xl font-bold"><Radio className="text-primary" /> Broadcast History</h1>
         <p className="mt-2 text-muted-foreground">See every time you went live, filtered by period.</p>
+
+        <div className="mt-6 rounded-xl border border-border bg-card p-4">
+          <p className="font-semibold">Your channels</p>
+          <p className="text-xs text-muted-foreground">Used to open your streams on each platform. Stream keys can't reveal your channel, so add it here.</p>
+          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+            <Input placeholder="YouTube handle (e.g. @mychannel) or URL" value={yt} onChange={(e) => setYt(e.target.value)} maxLength={200} />
+            <Input placeholder="Twitch username or URL" value={tw} onChange={(e) => setTw(e.target.value)} maxLength={200} />
+            <Button onClick={saveLinks} disabled={savingLinks}>{savingLinks ? "Saving…" : "Save"}</Button>
+          </div>
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {PERIODS.map((p) => (
@@ -137,6 +167,20 @@ const Broadcasts = () => {
                           {dests.length > 0 && ` · ${dests.map((d: any) => d.platform).join(", ")}`}
                         </p>
                       </div>
+                      {dests.some((d: any) => d.platform === "youtube") && (
+                        <div className="flex w-full flex-wrap items-center gap-2 text-xs md:w-auto">
+                          {ytUrl ? (<><span className="max-w-[220px] truncate text-muted-foreground">{ytUrl}</span>
+                            <Button asChild size="sm" variant="outline"><a href={ytUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> YouTube</a></Button></>)
+                            : <span className="text-muted-foreground">YouTube: add your channel above</span>}
+                        </div>
+                      )}
+                      {dests.some((d: any) => d.platform === "twitch") && (
+                        <div className="flex w-full flex-wrap items-center gap-2 text-xs md:w-auto">
+                          {twUrl ? (<><span className="max-w-[220px] truncate text-muted-foreground">{twUrl}</span>
+                            <Button asChild size="sm" variant="outline"><a href={twUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> Twitch</a></Button></>)
+                            : <span className="text-muted-foreground">Twitch: add your channel above</span>}
+                        </div>
+                      )}
                       <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageSquare size={12} /> {chatCounts[s.id] ?? 0}</span>
                       <Button asChild size="sm" variant="ghost"><Link to={`/live/${s.id}`}><ExternalLink size={14} /> Chat</Link></Button>
                     </div>
