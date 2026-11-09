@@ -17,7 +17,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import ShareModal from "@/components/studio/ShareModal";
 import {
   Video,
   Trash2,
@@ -28,7 +27,6 @@ import {
   Layers,
   Search,
   Film,
-  Share2,
   LayoutGrid,
   LayoutList,
   HardDrive,
@@ -66,8 +64,6 @@ const MyRecordings = () => {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [shareOpen, setShareOpen] = useState(false);
-  const [shareTitle, setShareTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Recording | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
@@ -245,9 +241,6 @@ const MyRecordings = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" onClick={() => { setShareTitle(rec.title); setShareOpen(true); }} title="Share">
-                        <Share2 size={16} />
-                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDownload(rec)} title="Download">
                         <Download size={16} />
                       </Button>
@@ -304,7 +297,6 @@ const MyRecordings = () => {
           </div>
         )}
       </main>
-      <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={shareTitle} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

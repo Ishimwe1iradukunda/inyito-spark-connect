@@ -12,7 +12,6 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import VideoEditor from "@/components/studio/VideoEditor";
 import WorkflowSteps from "@/components/studio/WorkflowSteps";
-import ShareModal from "@/components/studio/ShareModal";
 import RecordingProgressPanel from "@/components/studio/RecordingProgressPanel";
 import SkipMarkerButton, { type SkipRegion } from "@/components/studio/SkipMarkerButton";
 import LiveSkipTimeline from "@/components/studio/LiveSkipTimeline";
@@ -53,7 +52,6 @@ import {
   CloudUpload,
   Loader2,
   Wand2,
-  Share2,
   Scissors,
   Radio,
   MessageSquare,
@@ -126,7 +124,6 @@ const Studio = () => {
   const [saveTitle, setSaveTitle] = useState("");
   const [editingMode, setEditingMode] = useState(false);
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null);
-  const [shareOpen, setShareOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [previewMuted, setPreviewMuted] = useState(false);
   const [skipRegions, setSkipRegions] = useState<SkipRegion[]>([]);
@@ -850,14 +847,6 @@ const Studio = () => {
                     </div>
                   )}
 
-                  {/* Stream idle preview */}
-                  {false && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                      <Radio size={48} className="opacity-30" />
-                      <p className="text-sm">Configure destinations and Go Live</p>
-                    </div>
-                  )}
-
                   {/* Recording indicator */}
                   {(isRecording || isPaused) && (
                     <div className="absolute top-2 left-2 flex flex-col gap-1 bg-background/70 backdrop-blur-sm rounded-md px-2 py-1 pointer-events-none">
@@ -956,9 +945,6 @@ const Studio = () => {
                             </Button>
                           </>
                         )}
-                        <Button size="lg" variant="secondary" className="gap-2" onClick={() => setShareOpen(true)}>
-                          <Share2 size={18} /> Share
-                        </Button>
                         <Button variant="secondary" size="lg" className="gap-2" onClick={handleReset}>
                           <RotateCcw size={18} /> New
                         </Button>
@@ -1070,7 +1056,6 @@ const Studio = () => {
         onReset={resetBindings}
       />
 
-      <ShareModal open={shareOpen} onOpenChange={setShareOpen} videoTitle={saveTitle} />
       <SiteFooter />
     </div>
   );

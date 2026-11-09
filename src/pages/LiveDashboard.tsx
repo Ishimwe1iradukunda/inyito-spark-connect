@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { isBroadcastActive, isBroadcastOnAir } from "@/lib/broadcastStatus";
 
 interface Session { id: string; title: string; status: string; started_at: string; ended_at: string | null; destinations: any }
 interface Msg { id: string; session_id: string; display_name: string; message: string; is_host: boolean; created_at: string; user_id: string }
@@ -22,7 +23,8 @@ const LiveDashboard = () => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [now, setNow] = useState(Date.now());
 
-  const live = sessions.find((s) => s.status !== "ended") ?? null;
+  const live = sessions.find((s) => isBroadcastActive(s.status)) ?? null;
+  const onAir = live ? isBroadcastOnAir(live.status) : false;
 
   useEffect(() => {
     if (!user) return;
@@ -54,7 +56,7 @@ const LiveDashboard = () => {
 
   const chatters = useMemo(() => new Set(messages.map((m) => m.user_id)).size, [messages]);
   const perMin = useMemo(() => messages.filter((m) => now - new Date(m.created_at).getTime() < 60_000).length, [messages, now]);
-  const outputs: { platform: string; ok: boolean }[] = Array.isArray(live?.destinations) ? live!.destinations : [];
+  const outputs: { platform: string; ok: boolean }[] = live && Array.isArray(live.destinations) ? live.destinations : [];
   const viewerUrl = live ? `${window.location.origin}/live/${live.id}` : "";
 
   const Stat = ({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string | number }) => (
@@ -74,7 +76,7 @@ const LiveDashboard = () => {
             <p className="text-muted-foreground mt-1">Your broadcast, chat and audience at a glance — updates on its own.</p>
           </div>
           {live ? (
-            <Badge className="gap-1.5 bg-destructive text-destructive-foreground text-sm px-3 py-1"><Radio size={12} className="animate-pulse" /> ON AIR</Badge>
+            <Badge variant={onAir ? "destructive" : "secondary"} className="gap-1.5 text-sm px-3 py-1"><Radio size={12} className="animate-pulse" /> {onAir ? "ON AIR" : "CONNECTING"}</Badge>
           ) : (
             <Button asChild><Link to="/studio?mode=stream"><Video /> Go live in Studio</Link></Button>
           )}
@@ -86,7 +88,7 @@ const LiveDashboard = () => {
               <span className="font-semibold">{live.title}</span>
               <span className="text-xs text-muted-foreground">status: {live.status}</span>
               {outputs.map((o, i) => (
-                <Badge key={i} variant="outline" className={o.ok ? "border-primary/40" : "border-destructive/40 text-destructive"}>{o.platform} · {o.ok ? "relaying" : "failed"}</Badge>
+                <Badge key={i} variant="outline" className={o.ok ? "border-primary/40" : "border-destructive/40 text-destructive"}>{o.platform} · {o.ok ? "configured" : "setup failed"}</Badge>
               ))}
               <div className="ml-auto flex items-center gap-2">
                 <span className="hidden md:block truncate max-w-[16rem] text-xs text-muted-foreground">{viewerUrl}</span>
@@ -126,7 +128,7 @@ const LiveDashboard = () => {
               <div key={s.id} className="flex items-center justify-between p-3 text-sm">
                 <span className="truncate">{s.title}</span>
                 <span className="text-muted-foreground text-xs font-mono">
-                  {new Date(s.started_at).toLocaleString()} · {s.ended_at ? clock(new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) : "live"}
+                  {new Date(s.started_at).toLocaleString()} · {s.ended_at ? clock(new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) : isBroadcastOnAir(s.status) ? "live" : s.status}
                 </span>
               </div>
             ))}

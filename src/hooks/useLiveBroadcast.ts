@@ -58,11 +58,14 @@ export function useLiveBroadcast() {
   const resourceRef = useRef<string | null>(null);
   const sessionRef = useRef<{ sessionId: string | null; liveInputUid: string } | null>(null);
   const statsTimer = useRef<number | null>(null);
+  const statusTimer = useRef<number | null>(null);
   const prevStats = useRef({ bytes: 0, t: 0, frames: 0 });
 
   const teardownLocal = useCallback(() => {
     if (statsTimer.current) window.clearInterval(statsTimer.current);
     statsTimer.current = null;
+    if (statusTimer.current) window.clearTimeout(statusTimer.current);
+    statusTimer.current = null;
     if (resourceRef.current) {
       // best-effort WHIP session delete
       fetch(resourceRef.current, { method: "DELETE" }).catch(() => undefined);
@@ -159,8 +162,20 @@ export function useLiveBroadcast() {
           }
         });
 
-        setState("live");
         statsTimer.current = window.setInterval(collectStats, 1000);
+        // Persist provider-confirmed status for dashboards in other tabs.
+        const syncStatus = async () => {
+          const session = sessionRef.current;
+          if (!session || pcRef.current !== pc) return;
+          try {
+            await invokeLive({ action: "status", ...session });
+          } catch (e) {
+            logError("app", "Could not refresh broadcast status", e);
+            return; // Stop on authentication/provider failures rather than repeatedly retrying.
+          }
+          if (pcRef.current === pc) statusTimer.current = window.setTimeout(syncStatus, 10000);
+        };
+        void syncStatus();
         return result;
       } catch (e) {
         const message = (e as Error).message;
