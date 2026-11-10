@@ -180,7 +180,16 @@ export function useLiveBroadcast() {
       } catch (e) {
         const message = (e as Error).message;
         logError("app", message, e);
+        const failedSession = sessionRef.current;
+        sessionRef.current = null;
         teardownLocal();
+        if (failedSession?.sessionId) {
+          try {
+            await invokeLive({ action: "stop", sessionId: failedSession.sessionId });
+          } catch (cleanupError) {
+            logError("app", "Could not clean up the failed broadcast", cleanupError);
+          }
+        }
         setState("error");
         setError(message);
         throw e;
@@ -207,7 +216,16 @@ export function useLiveBroadcast() {
     }
   }, [teardownLocal]);
 
-  useEffect(() => () => teardownLocal(), [teardownLocal]);
+  useEffect(() => () => {
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    teardownLocal();
+    if (session?.sessionId) {
+      void invokeLive({ action: "stop", sessionId: session.sessionId }).catch((e) => {
+        logError("app", "Could not stop the broadcast after leaving Studio", e);
+      });
+    }
+  }, [teardownLocal]);
 
   return { state, stats, error, outputs, playbackUrl, sessionId, start, stop, isLive: state === "live" || state === "reconnecting" };
 }

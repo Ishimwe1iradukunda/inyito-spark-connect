@@ -81,7 +81,7 @@ const LiveBroadcastStatus = ({ state, stats, error, outputs, uptimeMs }: Props) 
                 >
                   {o.ok ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
                   {PLATFORM_LABEL[o.platform] ?? o.platform}
-                  {o.ok ? " · relaying" : " · failed"}
+                  {o.ok ? " · configured" : " · setup failed"}
                 </span>
               ))}
             </div>

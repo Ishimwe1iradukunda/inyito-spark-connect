@@ -4,5 +4,5 @@
 - [x] Only show dashboard ON AIR for connected statuses; sync provider status while broadcasting; status tests passed
 - [ ] Highlights check on user's own broadcast — blocked: no video attached (only image.png received)
 - [x] Live dashboard page
-- [ ] Add direct Broadcast actions to home cards and navigation/sidebar
-- [ ] Harden live-stream ownership checks, validation, and relay cleanup
+- [x] Add direct Broadcast actions to home cards and navigation/sidebar — desktop, home card, and mobile browser checks passed
+- [x] Harden live-stream ownership checks, validation, and relay cleanup — deployed; validation/ownership tests passed

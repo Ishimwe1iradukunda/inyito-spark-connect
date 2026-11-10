@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const ACTIONS = [
   { icon: Video, title: "Record a video", desc: "Capture your screen, camera and voice in one click — with countdown and live sound meters.", to: "/studio", color: "--brand-blue", cta: "Start recording" },
-  { icon: Radio, title: "Go live", desc: "Stream to YouTube, Twitch and Facebook at once, with overlays and live chat for your viewers.", to: "/studio?mode=stream", color: "--brand-red", cta: "Set up a stream" },
+  { icon: Radio, title: "Broadcast", desc: "Start a stream to YouTube, Twitch and Facebook at once, with overlays and live chat for your viewers.", to: "/studio?mode=stream", color: "--brand-red", cta: "Start broadcasting" },
   { icon: Scissors, title: "Edit like a pro", desc: "Trim, add text, filters, transitions and keyframes — see every change instantly.", to: "/studio", color: "--brand-purple", cta: "Open the editor" },
   { icon: Sparkles, title: "Find highlights with AI", desc: "Upload a stream and AI picks the best moments with timestamps and clip titles.", to: "/highlights", color: "--brand-gold", cta: "Find highlights" },
   { icon: LayoutTemplate, title: "Use a template", desc: "Ready-made looks, filters and effects you can apply in one click.", to: "/templates", color: "--brand-green", cta: "Browse templates" },

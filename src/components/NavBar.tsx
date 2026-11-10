@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen, UserCircle } from "lucide-react";
+import { Menu, X, ArrowLeft, Home, LogIn, LogOut, FolderOpen, UserCircle, Radio } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -95,9 +95,9 @@ const NavBar = () => {
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden xl:flex items-center gap-5">
             {anchorLinks.map((link) => (
-              <a key={link} href={`/#${link.toLowerCase()}`} onClick={(e) => handleAnchorClick(e, link.toLowerCase())} className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+              <a key={link} href={`/#${link.toLowerCase()}`} onClick={(e) => handleAnchorClick(e, link.toLowerCase())} className="hidden 2xl:block text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
                 {link}
               </a>
             ))}
@@ -108,8 +108,12 @@ const NavBar = () => {
             ))}
           </div>
 
-          {/* Auth Buttons */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Broadcast + Auth Buttons */}
+          <div className="hidden xl:flex items-center gap-2">
+            <Button variant="destructive" size="sm" className="gap-2 font-semibold" onClick={() => navigate("/studio?mode=stream")}>
+              <Radio size={14} />
+              Broadcast
+            </Button>
             {user ? (
               <>
                 <Button variant="ghost" size="sm" className="gap-2" onClick={() => navigate("/profile")}>
@@ -134,14 +138,31 @@ const NavBar = () => {
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button className="md:hidden text-foreground p-2" onClick={() => setMenuOpen(!menuOpen)}>
+          <button
+            type="button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            className="xl:hidden text-foreground p-2"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
             {menuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
 
         {/* Mobile Menu */}
         {menuOpen && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden pb-4 border-t border-border mt-1">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="xl:hidden mt-1 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-b-xl border-t border-border bg-background/95 px-4 pb-4 shadow-lg backdrop-blur-md"
+          >
+            <Button
+              variant="destructive"
+              className="my-3 w-full gap-2 font-semibold"
+              onClick={() => { navigate("/studio?mode=stream"); setMenuOpen(false); }}
+            >
+              <Radio size={16} /> Broadcast
+            </Button>
             {anchorLinks.map((link) => (
               <a key={link} href={`/#${link.toLowerCase()}`} onClick={(e) => handleAnchorClick(e, link.toLowerCase())} className="block py-3 text-muted-foreground hover:text-foreground transition-colors font-medium">
                 {link}

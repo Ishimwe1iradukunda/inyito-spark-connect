@@ -383,10 +383,10 @@ const Studio = () => {
       setLiveUptime(0);
       const failed = (result?.outputs ?? []).filter((o) => !o.ok);
       toast({
-        title: "You are live!",
+        title: "Broadcast connecting",
         description: failed.length
-          ? `Relaying to ${(result?.outputs.length ?? 0) - failed.length} destination(s); ${failed.length} failed.`
-          : `Relaying to ${destinations.length} destination(s).`,
+          ? `Connecting to ${(result?.outputs.length ?? 0) - failed.length} destination(s); ${failed.length} failed setup.`
+          : `Connecting to ${destinations.length} destination(s). ON AIR appears after the relay confirms the connection.`,
       });
     } catch (e) {
       toast({ title: "Could not go live", description: (e as Error).message, variant: "destructive" });
@@ -678,8 +678,11 @@ const Studio = () => {
                 </Badge>
               )}
               {isStreaming && (
-                <Badge className="text-[10px] gap-1 bg-destructive text-destructive-foreground animate-pulse">
-                  <Radio size={8} /> LIVE
+                <Badge
+                  variant={broadcast.state === "live" ? "destructive" : "secondary"}
+                  className={`text-[10px] gap-1 ${broadcast.state === "live" ? "animate-pulse" : ""}`}
+                >
+                  <Radio size={8} /> {broadcast.state === "live" ? "LIVE" : broadcast.state === "error" ? "ERROR" : "CONNECTING"}
                 </Badge>
               )}
             </div>
